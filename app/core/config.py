@@ -84,8 +84,8 @@ class Settings(BaseSettings):
     OPENROUTER_APP_URL: str = "https://github.com/ap-team/ap-intake"
 
     # Email configuration
-    GMAIL_CLIENT_ID: Optional[str] = "your-gmail-client-id.apps.googleusercontent.com"
-    GMAIL_CLIENT_SECRET: Optional[str] = "your-gmail-client-secret"
+    GMAIL_CLIENT_ID: Optional[str] = None
+    GMAIL_CLIENT_SECRET: Optional[str] = None
     GRAPH_TENANT_ID: Optional[str] = None
     GRAPH_CLIENT_ID: Optional[str] = None
     GRAPH_CLIENT_SECRET: Optional[str] = None
