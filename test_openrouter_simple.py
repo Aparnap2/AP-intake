@@ -23,7 +23,7 @@ async def test_openrouter_direct():
     print("=" * 50)
 
     # Get configuration from environment
-    api_key = os.getenv('OPENROUTER_API_KEY', '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')
+    api_key = os.getenv('OPENROUTER_API_KEY')
     model = os.getenv('LLM_MODEL', 'z-ai/glm-4.5-air:free')
     base_url = 'https://openrouter.ai/api/v1'
 
