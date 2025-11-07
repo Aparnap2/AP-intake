@@ -1,0 +1,129 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - heading "AP Intake Review" [level=1] [ref=e9]
+      - paragraph [ref=e10]: "Document: Invoice_Acme_Corp_2024.pdf"
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - img [ref=e13]
+        - generic [ref=e16]:
+          - paragraph [ref=e17]: Pending Review
+          - paragraph [ref=e18]: Extracted in 1240ms • 2 line items
+      - generic [ref=e19]:
+        - paragraph [ref=e20]: $12,450.50
+        - paragraph [ref=e21]: USD
+    - alert [ref=e22]:
+      - img [ref=e23]
+      - generic [ref=e25]: Validation Alerts (2)
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]: "vendorId:"
+          - generic [ref=e29]: Vendor ID not found in master list. Please verify or add new vendor.
+        - generic [ref=e30]:
+          - generic [ref=e31]: "purchaseOrder:"
+          - generic [ref=e32]: PO partially matches existing records. Review recommended.
+    - generic [ref=e33]:
+      - button "Summary" [ref=e34]
+      - button "Detailed Fields" [ref=e35]
+      - button "Line Items" [ref=e36]
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - generic [ref=e40]: Invoice Details
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - generic [ref=e43]: Invoice Number
+            - generic [ref=e44]:
+              - generic [ref=e45]: INV-2024-5647
+              - generic [ref=e46]: "High: 98%"
+          - generic [ref=e47]:
+            - generic [ref=e48]: Invoice Date
+            - generic [ref=e49]:
+              - generic [ref=e50]: 2024-11-01
+              - img [ref=e51]
+          - generic [ref=e54]:
+            - generic [ref=e55]: Due Date
+            - generic [ref=e56]:
+              - generic [ref=e57]: 2024-11-30
+              - img [ref=e58]
+          - generic [ref=e61]:
+            - generic [ref=e62]: Payment Terms
+            - generic [ref=e63]: Net 30
+      - generic [ref=e64]:
+        - generic [ref=e66]: Vendor Information
+        - generic [ref=e67]:
+          - generic [ref=e68]:
+            - generic [ref=e69]: Vendor Name
+            - generic [ref=e70]:
+              - generic [ref=e71]: Acme Corp Manufacturing
+              - img [ref=e72]
+          - generic [ref=e75]:
+            - generic [ref=e76]: Vendor ID
+            - generic [ref=e77]:
+              - generic [ref=e78]: VENDOR-4521
+              - generic [ref=e79]: Needs Review
+          - generic [ref=e80]:
+            - generic [ref=e81]: Purchase Order
+            - generic [ref=e82]:
+              - generic [ref=e83]: PO-2024-0891
+              - generic [ref=e84]: "Good: 89%"
+      - generic [ref=e85]:
+        - generic [ref=e87]: Amount Summary
+        - generic [ref=e88]:
+          - generic [ref=e89]:
+            - generic [ref=e90]: Subtotal
+            - generic [ref=e91]: $12,000.00
+          - generic [ref=e92]:
+            - generic [ref=e93]: Tax
+            - generic [ref=e94]: $0.00
+          - generic [ref=e95]:
+            - generic [ref=e96]: Total Amount
+            - generic [ref=e97]: $12,450.50
+      - generic [ref=e98]:
+        - generic [ref=e100]: Extraction Quality
+        - generic [ref=e101]:
+          - generic [ref=e103]:
+            - generic [ref=e104]: Overall Confidence
+            - generic [ref=e105]: 95%
+          - paragraph [ref=e109]: "Status: Ready for Processing"
+    - generic [ref=e110]:
+      - button "Reject & Request Reupload" [ref=e111]
+      - button "Request Manual Review" [ref=e112]
+      - button "Approve & Process" [ref=e113]
+    - generic [ref=e116]:
+      - generic [ref=e117]:
+        - heading "Ready for the Complete Invoice Management System?" [level=3] [ref=e118]
+        - paragraph [ref=e119]: Access the full dashboard with batch operations, approval workflows, exception handling, and advanced analytics.
+        - generic [ref=e120]:
+          - link "Open Invoice Dashboard" [ref=e121] [cursor=pointer]:
+            - /url: /invoices
+            - img
+            - text: Open Invoice Dashboard
+          - link "View Exceptions" [ref=e122] [cursor=pointer]:
+            - /url: /invoices?tab=exceptions
+            - img
+            - text: View Exceptions
+          - link "Email Integration" [ref=e123] [cursor=pointer]:
+            - /url: /email
+            - img
+            - text: Email Integration
+      - generic [ref=e125]:
+        - heading "Quick Stats" [level=4] [ref=e126]
+        - generic [ref=e127]:
+          - generic [ref=e128]:
+            - generic [ref=e129]: "Total Invoices:"
+            - generic [ref=e130]: 1,247
+          - generic [ref=e131]:
+            - generic [ref=e132]: "Pending Review:"
+            - generic [ref=e133]: "23"
+          - generic [ref=e134]:
+            - generic [ref=e135]: "Auto-Approval Rate:"
+            - generic [ref=e136]: 78.5%
+  - button "Open Next.js Dev Tools" [ref=e142] [cursor=pointer]:
+    - img [ref=e143]
+  - alert [ref=e146]
+```

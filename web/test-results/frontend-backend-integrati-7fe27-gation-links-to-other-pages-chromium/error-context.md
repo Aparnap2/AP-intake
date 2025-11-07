@@ -1,0 +1,97 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [active]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - navigation [ref=e7]:
+            - button "previous" [disabled] [ref=e8]:
+              - img "previous" [ref=e9]
+            - generic [ref=e11]:
+              - generic [ref=e12]: 1/
+              - text: "1"
+            - button "next" [disabled] [ref=e13]:
+              - img "next" [ref=e14]
+          - img
+        - generic [ref=e16]:
+          - link "Next.js 16.0.0 (stale) Turbopack" [ref=e17] [cursor=pointer]:
+            - /url: https://nextjs.org/docs/messages/version-staleness
+            - img [ref=e18]
+            - generic "There is a newer version (16.0.1) available, upgrade recommended!" [ref=e20]: Next.js 16.0.0 (stale)
+            - generic [ref=e21]: Turbopack
+          - img
+      - dialog "Runtime ReferenceError" [ref=e23]:
+        - generic [ref=e26]:
+          - generic [ref=e27]:
+            - generic [ref=e28]:
+              - generic [ref=e30]: Runtime ReferenceError
+              - generic [ref=e31]:
+                - button "Copy Error Info" [ref=e32] [cursor=pointer]:
+                  - img [ref=e33]
+                - button "No related documentation found" [disabled] [ref=e35]:
+                  - img [ref=e36]
+                - link "Learn more about enabling Node.js inspector for server code with Chrome DevTools" [ref=e38] [cursor=pointer]:
+                  - /url: https://nextjs.org/docs/app/building-your-application/configuring/debugging#server-side-code
+                  - img [ref=e39]
+            - generic [ref=e48]: Paperclip is not defined
+          - generic [ref=e49]:
+            - generic [ref=e50]:
+              - paragraph [ref=e52]:
+                - img [ref=e54]
+                - generic [ref=e57]: components/invoice/InvoiceDashboard.tsx (655:28) @ <unknown>
+                - button "Open in editor" [ref=e58] [cursor=pointer]:
+                  - img [ref=e60]
+              - generic [ref=e63]:
+                - generic [ref=e64]: "653 | <span className=\"font-mono font-semibold\">{invoice.invoiceNumber}</span>"
+                - generic [ref=e65]: "654 | {invoice.hasAttachments && ("
+                - generic [ref=e66]: "> 655 | <Paperclip className=\"w-4 h-4 text-slate-400\" />"
+                - generic [ref=e67]: "| ^"
+                - generic [ref=e68]: "656 | )}"
+                - generic [ref=e69]: 657 | </div>
+                - generic [ref=e70]: 658 | </TableCell>
+            - generic [ref=e71]:
+              - generic [ref=e72]:
+                - paragraph [ref=e73]:
+                  - text: Call Stack
+                  - generic [ref=e74]: "16"
+                - button "Show 12 ignore-listed frame(s)" [ref=e75] [cursor=pointer]:
+                  - text: Show 12 ignore-listed frame(s)
+                  - img [ref=e76]
+              - generic [ref=e78]:
+                - generic [ref=e79]:
+                  - text: <unknown>
+                  - button "Open <unknown> in editor" [ref=e80] [cursor=pointer]:
+                    - img [ref=e81]
+                - text: components/invoice/InvoiceDashboard.tsx (655:28)
+              - generic [ref=e83]:
+                - generic [ref=e84]: Array.map
+                - text: <anonymous>
+              - generic [ref=e85]:
+                - generic [ref=e86]:
+                  - text: InvoiceDashboard
+                  - button "Open InvoiceDashboard in editor" [ref=e87] [cursor=pointer]:
+                    - img [ref=e88]
+                - text: components/invoice/InvoiceDashboard.tsx (636:36)
+              - generic [ref=e90]:
+                - generic [ref=e91]:
+                  - text: InvoicesPage
+                  - button "Open InvoicesPage in editor" [ref=e92] [cursor=pointer]:
+                    - img [ref=e93]
+                - text: app/invoices/page.tsx (236:13)
+        - generic [ref=e95]: "1"
+        - generic [ref=e96]: "2"
+    - generic [ref=e101] [cursor=pointer]:
+      - button "Open Next.js Dev Tools" [ref=e102]:
+        - img [ref=e103]
+      - generic [ref=e106]:
+        - button "Open issues overlay" [ref=e107]:
+          - generic [ref=e108]:
+            - generic [ref=e109]: "0"
+            - generic [ref=e110]: "1"
+          - generic [ref=e111]: Issue
+        - button "Collapse issues badge" [ref=e112]:
+          - img [ref=e113]
+  - 'heading "Application error: a client-side exception has occurred while loading localhost (see the browser console for more information)." [level=2] [ref=e117]'
+```

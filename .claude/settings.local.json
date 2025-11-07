@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p {app/{api,core,db,models,services,workers,utils},web/{src/{components,pages,hooks,utils},public},tests/{unit,integration,fixtures},migrations,docs,scripts,config})",
+      "mcp__ddg-web-search__search",
+      "mcp__ddg-web-search__fetch_content",
+      "Bash(uv:*)",
+      "WebSearch",
+      "Bash(find:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend-Backend Integration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .pending { background-color: #fff3cd; border-color: #ffeaa7; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>AP Intake Frontend-Backend Integration Test</h1>
+
+    <div class="test-section">
+        <h2>1. Frontend Status</h2>
+        <p><strong>Frontend URL:</strong> <span id="frontend-url"></span></p>
+        <p><strong>Status:</strong> <span id="frontend-status">Loading...</span></p>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Backend API Connectivity</h2>
+        <button onclick="testHealthEndpoint()">Test Health Endpoint</button>
+        <button onclick="testInvoicesEndpoint()">Test Invoices Endpoint</button>
+        <button onclick="testVendorsEndpoint()">Test Vendors Endpoint</button>
+        <div id="api-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. CORS Test</h2>
+        <button onclick="testCORS()">Test CORS Configuration</button>
+        <div id="cors-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Network Monitoring</h2>
+        <p>Open browser console to see network requests...</p>
+        <button onclick="monitorNetworkRequests()">Start Network Monitoring</button>
+        <div id="network-results"></div>
+    </div>
+
+    <script>
+        // Initialize
+        document.getElementById('frontend-url').textContent = window.location.origin;
+        document.getElementById('frontend-status').innerHTML = '<span class="success">✓ Running</span>';
+
+        const API_BASE = 'http://localhost:8000';
+
+        async function testHealthEndpoint() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<p>Testing health endpoint...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        <h3>Health Endpoint - SUCCESS</h3>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Data:</strong></p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h3>Health Endpoint - FAILED</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testInvoicesEndpoint() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<p>Testing invoices endpoint...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/invoices/`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultsDiv.innerHTML = `
+                        <div class="success">
+                            <h3>Invoices Endpoint - SUCCESS</h3>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <p><strong>Data:</strong></p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="error">
+                            <h3>Invoices Endpoint - FAILED</h3>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <p><strong>Error:</strong></p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h3>Invoices Endpoint - FAILED</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testVendorsEndpoint() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<p>Testing vendors endpoint...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/vendors/`);
+                const data = await response.json();
+
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        <h3>Vendors Endpoint - SUCCESS</h3>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Data:</strong></p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h3>Vendors Endpoint - FAILED</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testCORS() {
+            const resultsDiv = document.getElementById('cors-results');
+            resultsDiv.innerHTML = '<p>Testing CORS configuration...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/vendors/`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    }
+                });
+
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers')
+                };
+
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        <h3>CORS Test - SUCCESS</h3>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>CORS Headers:</strong></p>
+                        <pre>${JSON.stringify(corsHeaders, null, 2)}</pre>
+                        <p><strong>Request Origin:</strong> ${window.location.origin}</p>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h3>CORS Test - FAILED</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>This might indicate a CORS configuration issue.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function monitorNetworkRequests() {
+            const resultsDiv = document.getElementById('network-results');
+            resultsDiv.innerHTML = '<p>Monitoring network requests... Check browser console for detailed logs.</p>';
+
+            // Override fetch to monitor requests
+            const originalFetch = window.fetch;
+            window.fetch = function(...args) {
+                const [url, options] = args;
+                console.log('🌐 Network Request:', {
+                    url: url,
+                    method: options?.method || 'GET',
+                    timestamp: new Date().toISOString()
+                });
+
+                return originalFetch.apply(this, args)
+                    .then(response => {
+                        console.log('✅ Network Response:', {
+                            url: url,
+                            status: response.status,
+                            ok: response.ok,
+                            timestamp: new Date().toISOString()
+                        });
+                        return response;
+                    })
+                    .catch(error => {
+                        console.error('❌ Network Error:', {
+                            url: url,
+                            error: error.message,
+                            timestamp: new Date().toISOString()
+                        });
+                        throw error;
+                    });
+            };
+
+            // Make a test request
+            setTimeout(() => {
+                fetch(`${API_BASE}/health`);
+            }, 1000);
+
+            setTimeout(() => {
+                fetch(`${API_BASE}/api/v1/vendors/`);
+            }, 2000);
+        }
+
+        // Auto-run some tests
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testHealthEndpoint();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
