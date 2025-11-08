@@ -1,0 +1,169 @@
+=================================================
+COMPREHENSIVE FILE UPLOAD API TEST REPORT
+=================================================
+Date: Fri Nov  7 06:06:21 PM IST 2025
+API Endpoint: http://localhost:8000/api/v1/invoices/upload
+Test Invoice: /home/aparna/Desktop/ap_intake/test_invoices/test_invoice_standard_20251107_175127.pdf
+
+[0;34m[INFO][0m Checking API health...
+[0;32m[PASS][0m API is healthy and responding
+[0;34m[INFO][0m Creating test files...
+[0;34m[INFO][0m Test files created
+[0;34m[INFO][0m Starting comprehensive file upload API tests...
+[0;34m[INFO][0m Running Test: Valid PDF Upload
+[0;34m[INFO][0m Description: Upload a valid PDF invoice file
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/home/aparna/Desktop/ap_intake/test_invoices/test_invoice_standard_20251107_175127.pdf' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 3796ms
+[0;31m[FAIL][0m Valid PDF Upload: FAILED (Expected: 200, Got: )
+Response details:
+{"detail":"Duplicate file detected. Existing invoice ID: 08b459a9-0306-47ec-8457-898f83eef4b3"}HTTP Status: 409
+---
+
+[0;34m[INFO][0m Running Test: Missing File
+[0;34m[INFO][0m Description: Request without any file
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 16ms
+[0;31m[FAIL][0m Missing File: FAILED (Expected: 422, Got: )
+Response details:
+{"detail":[{"type":"missing","loc":["body","file"],"msg":"Field required","input":null,"url":"https://errors.pydantic.dev/2.12/v/missing"}]}HTTP Status: 422
+---
+
+[0;34m[INFO][0m Running Test: Invalid File Type
+[0;34m[INFO][0m Description: Upload a text file (should be rejected)
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/tmp/test.txt' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 18ms
+[0;31m[FAIL][0m Invalid File Type: FAILED (Expected: 400, Got: )
+Response details:
+{"detail":"File type 'txt' not allowed. Allowed types: ['pdf', 'jpeg', 'jpg', 'png']"}HTTP Status: 400
+---
+
+[0;34m[INFO][0m Running Test: Large File Upload
+[0;34m[INFO][0m Description: Upload a 30MB file (should exceed limit)
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/tmp/large.pdf' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 249ms
+[0;31m[FAIL][0m Large File Upload: FAILED (Expected: 400, Got: )
+Response details:
+{"detail":"File size 30.0MB exceeds maximum 25MB"}HTTP Status: 400
+---
+
+[0;34m[INFO][0m Running Test: Empty File Upload
+[0;34m[INFO][0m Description: Upload an empty PDF file
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/tmp/empty.pdf' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 24046ms
+[0;31m[FAIL][0m Empty File Upload: FAILED (Expected: 200, Got: )
+Response details:
+{"detail":"Internal server error"}HTTP Status: 500
+---
+
+[0;34m[INFO][0m Running Test: Corrupted PDF Upload
+[0;34m[INFO][0m Description: Upload a corrupted PDF file (API should accept but processing may fail)
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/tmp/corrupted.pdf' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 21163ms
+[0;31m[FAIL][0m Corrupted PDF Upload: FAILED (Expected: 200, Got: )
+Response details:
+{"detail":"Internal server error"}HTTP Status: 500
+---
+
+[0;34m[INFO][0m Running duplicate file test (2 uploads)...
+[0;34m[INFO][0m Running Test: Duplicate File Upload - First
+[0;34m[INFO][0m Description: First upload of the PDF file
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/home/aparna/Desktop/ap_intake/test_invoices/test_invoice_standard_20251107_175127.pdf' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 358ms
+[0;31m[FAIL][0m Duplicate File Upload - First: FAILED (Expected: 200, Got: )
+Response details:
+{"detail":"Duplicate file detected. Existing invoice ID: 08b459a9-0306-47ec-8457-898f83eef4b3"}HTTP Status: 409
+---
+
+[0;34m[INFO][0m Running Test: Duplicate File Upload - Second
+[0;34m[INFO][0m Description: Second upload of same PDF (should detect duplicate)
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/home/aparna/Desktop/ap_intake/test_invoices/test_invoice_standard_20251107_175127.pdf' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 462ms
+[0;31m[FAIL][0m Duplicate File Upload - Second: FAILED (Expected: 409, Got: )
+Response details:
+{"detail":"Duplicate file detected. Existing invoice ID: 08b459a9-0306-47ec-8457-898f83eef4b3"}HTTP Status: 409
+---
+
+[0;34m[INFO][0m Running Test: JPEG Upload
+[0;34m[INFO][0m Description: Upload a JPEG image file
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/tmp/test.jpg' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 21209ms
+[0;31m[FAIL][0m JPEG Upload: FAILED (Expected: 200, Got: )
+Response details:
+{"detail":"Internal server error"}HTTP Status: 500
+---
+
+[0;34m[INFO][0m Running Test: PNG Upload
+[0;34m[INFO][0m Description: Upload a PNG image file
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/tmp/test.png' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 21102ms
+[0;31m[FAIL][0m PNG Upload: FAILED (Expected: 200, Got: )
+Response details:
+{"detail":"Internal server error"}HTTP Status: 500
+---
+
+[0;34m[INFO][0m Running Test: Special Characters in Filename
+[0;34m[INFO][0m Description: Upload file with special characters in name
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/tmp/test file (special).pdf' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 355ms
+[0;31m[FAIL][0m Special Characters in Filename: FAILED (Expected: 200, Got: )
+Response details:
+{"detail":"Duplicate file detected. Existing invoice ID: 08b459a9-0306-47ec-8457-898f83eef4b3"}HTTP Status: 409
+---
+
+[0;34m[INFO][0m Running Test: Wrong Content Type
+[0;34m[INFO][0m Description: Upload PDF with wrong content type (should still work)
+[0;34m[INFO][0m Command: curl -s -w 'HTTP Status: %{http_code}
+' -X POST -F 'file=@/home/aparna/Desktop/ap_intake/test_invoices/test_invoice_standard_20251107_175127.pdf;type=text/plain' 'http://localhost:8000/api/v1/invoices/upload'
+[0;34m[INFO][0m HTTP Status: 
+[0;34m[INFO][0m Response Time: 340ms
+[0;31m[FAIL][0m Wrong Content Type: FAILED (Expected: 200, Got: )
+Response details:
+{"detail":"Duplicate file detected. Existing invoice ID: 08b459a9-0306-47ec-8457-898f83eef4b3"}HTTP Status: 409
+---
+
+[0;34m[INFO][0m Running performance test with 5 concurrent uploads...
+[0;34m[INFO][0m Performance Test Results:
+[0;34m[INFO][0m Total time for 5 concurrent uploads: 2500ms
+[0;34m[INFO][0m Average time per upload: 500ms
+[0;31m[FAIL][0m Performance Test: Only 0/5 concurrent uploads succeeded
+[0;34m[INFO][0m Cleaning up test files...
+
+=================================================
+FINAL TEST SUMMARY
+=================================================
+Total Tests: 12
+Passed: [0;32m0[0m
+Failed: [0;31m12[0m
+Errors: [0;31m0[0m
+Success Rate: 0%
+
+RECOMMENDATIONS:
+❌ Some tests failed. Review the failed scenarios above.
+⚠️  Check API error handling and validation logic.
+[0;34m[INFO][0m Testing database integration...
+[1;33m[WARN][0m Database integration test inconclusive.
+
+Report saved to: /home/aparna/Desktop/ap_intake/test_reports/upload_api_test_report_20251107_180621.txt
+=================================================

@@ -317,19 +317,37 @@ class InvoiceProcessor:
 
         return ""
 
-    async def _save_extraction_result(self, invoice_id: str, extraction_result: Dict[str, Any]) -> None:
-        """Save extraction result to database."""
+    async def _save_extraction_result(self, invoice_id: str, extraction_result) -> None:
+        """Save extraction result to database from structured Pydantic model."""
         try:
+            from app.models.schemas import InvoiceExtractionResult
+
+            # Handle both Dict and structured Pydantic models
+            if isinstance(extraction_result, InvoiceExtractionResult):
+                # Extract data from structured model
+                header_dict = extraction_result.header.model_dump()
+                lines_list = [line.model_dump() for line in extraction_result.lines]
+                confidence_dict = extraction_result.confidence.model_dump()
+                metadata_dict = extraction_result.metadata.model_dump()
+                processing_notes = extraction_result.processing_notes or []
+            else:
+                # Legacy Dict format
+                header_dict = extraction_result.get("header", {})
+                lines_list = extraction_result.get("lines", [])
+                confidence_dict = extraction_result.get("confidence", {})
+                metadata_dict = extraction_result.get("metadata", {})
+                processing_notes = []
+
             async with AsyncSessionLocal() as session:
                 # Create new extraction record
                 extraction = InvoiceExtraction(
                     invoice_id=uuid.UUID(invoice_id),
-                    header_json=extraction_result.get("header", {}),
-                    lines_json=extraction_result.get("lines", []),
-                    confidence_json=extraction_result.get("confidence", {}),
-                    parser_version=extraction_result.get("metadata", {}).get("parser_version", "unknown"),
-                    processing_time_ms=str(extraction_result.get("metadata", {}).get("processing_time_ms", 0)),
-                    page_count=str(extraction_result.get("metadata", {}).get("pages_processed", 0))
+                    header_json=header_dict,
+                    lines_json=lines_list,
+                    confidence_json=confidence_dict,
+                    parser_version=metadata_dict.get("parser_version", "unknown"),
+                    processing_time_ms=str(metadata_dict.get("processing_time_ms", 0)),
+                    page_count=str(metadata_dict.get("page_count", 0))
                 )
                 session.add(extraction)
                 await session.commit()
@@ -526,8 +544,25 @@ class InvoiceProcessor:
             )
 
             # Validate extraction result structure
-            if not extraction_result or "header" not in extraction_result or "lines" not in extraction_result:
+            if not extraction_result:
                 raise ExtractionException("Invalid extraction result structure")
+
+            # Extract confidence score from structured model or dict
+            if hasattr(extraction_result, 'confidence'):
+                confidence_score = float(extraction_result.confidence.overall)
+                extraction_confidence = confidence_score
+                header_fields = len(extraction_result.header.model_dump(exclude_unset=True))
+                line_items = len(extraction_result.lines)
+                pages_processed = extraction_result.metadata.page_count
+                parser_version = extraction_result.metadata.parser_version
+            else:
+                # Legacy dict format
+                confidence_score = extraction_result.get("overall_confidence", 0.0)
+                extraction_confidence = extraction_result.get("overall_confidence", 0.0)
+                header_fields = len(extraction_result.get("header", {}))
+                line_items = len(extraction_result.get("lines", []))
+                pages_processed = extraction_result.get("metadata", {}).get("pages_processed", 0)
+                parser_version = extraction_result.get("metadata", {}).get("parser_version", "unknown")
 
             # Update state with extraction results
             state.update({
@@ -535,7 +570,7 @@ class InvoiceProcessor:
                 "current_step": "parsed",
                 "status": "processing",
                 "previous_step": state.get("current_step"),
-                "confidence_score": extraction_result.get("overall_confidence", 0.0),
+                "confidence_score": confidence_score,
                 "error_message": None,
                 "error_details": None,
                 "processing_history": state.get("processing_history", []) + [{
@@ -544,10 +579,11 @@ class InvoiceProcessor:
                     "timestamp": datetime.utcnow().isoformat(),
                     "duration_ms": int((datetime.utcnow() - start_time).total_seconds() * 1000),
                     "metadata": {
-                        "extraction_confidence": extraction_result.get("overall_confidence", 0.0),
-                        "header_fields": len(extraction_result.get("header", {})),
-                        "line_items": len(extraction_result.get("lines", [])),
-                        "pages_processed": extraction_result.get("metadata", {}).get("pages_processed", 0)
+                        "extraction_confidence": extraction_confidence,
+                        "header_fields": header_fields,
+                        "line_items": line_items,
+                        "pages_processed": pages_processed,
+                        "parser_version": parser_version
                     }
                 }]
             })
@@ -1185,25 +1221,47 @@ class InvoiceProcessor:
             extraction_result = state["extraction_result"]
             export_format = state.get("export_format", "json")
 
+            # Handle both structured models and legacy dicts
+            if hasattr(extraction_result, 'header'):
+                # Structured Pydantic model
+                header_dict = extraction_result.header.model_dump(exclude_unset=True)
+                lines_list = [line.model_dump(exclude_unset=True) for line in extraction_result.lines]
+                confidence_dict = extraction_result.confidence.model_dump(exclude_unset=True)
+                metadata_dict = extraction_result.metadata.model_dump(exclude_unset=True)
+                extraction_timestamp = extraction_result.extraction_timestamp.isoformat()
+                processing_notes = extraction_result.processing_notes or []
+            else:
+                # Legacy dict format
+                header_dict = extraction_result.get("header", {})
+                lines_list = extraction_result.get("lines", [])
+                confidence_dict = extraction_result.get("confidence", {})
+                metadata_dict = extraction_result.get("metadata", {})
+                extraction_timestamp = metadata_dict.get("extracted_at", datetime.utcnow().isoformat())
+                processing_notes = []
+
             # Create standardized export payload
             export_payload = {
                 "invoice_id": state["invoice_id"],
                 "workflow_id": state["workflow_id"],
-                "header": extraction_result.get("header", {}),
-                "lines": extraction_result.get("lines", []),
+                "header": header_dict,
+                "lines": lines_list,
+                "confidence": confidence_dict,
                 "metadata": {
                     "extraction_confidence": state.get("confidence_score", 0.0),
                     "validation_passed": state.get("validation_result", {}).get("passed", False),
                     "processed_at": datetime.utcnow().isoformat(),
                     "export_format": export_format,
                     "export_version": "2.0",
+                    "extraction_timestamp": extraction_timestamp,
                     "processing_summary": {
                         "total_steps": len(state.get("processing_history", [])),
                         "total_time_ms": sum(
                             step.get("duration_ms", 0) for step in state.get("processing_history", [])
                         ),
                         "exceptions_resolved": len(state.get("exception_ids", []))
-                    }
+                    },
+                    **metadata_dict,
+                    "processing_notes": processing_notes
                 }
             }
 

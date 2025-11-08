@@ -23,24 +23,25 @@ RUN apt-get update \
 # Set work directory
 WORKDIR /app
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --upgrade pip \
-    && pip install -r requirements.txt --no-deps \
-    && pip install pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=2.7.0 \
-    && pip install pydantic-settings>=2.3.0,<3.0.0
+# Install uv for fast Python package management
+RUN pip install uv
+
+# Install Python dependencies using uv
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen
 
 # Copy application code
 COPY app/ ./app/
 COPY migrations/ ./migrations/
 COPY scripts/ ./scripts/
 COPY alembic.ini ./
+COPY test_api_response.py ./
 
 # Create necessary directories
 RUN mkdir -p storage exports langgraph_storage logs
 
-# Set permissions
-RUN chmod +x scripts/*.sh
+# Set permissions for Python scripts
+RUN chmod +x scripts/*.py
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -49,5 +50,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 8000
 
-# Default command
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Default command - use uv run to ensure we're using the virtual environment
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

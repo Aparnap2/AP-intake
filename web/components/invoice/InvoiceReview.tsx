@@ -13,6 +13,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
+import { useToast } from "@/components/ui/use-toast"
+import { workflow } from "@/lib/invoice-api"
 import {
   FileText,
   AlertCircle,
@@ -50,25 +52,24 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// Types for our invoice data
+// Import our new type-safe interfaces
+import {
+  InvoiceExtractionResult,
+  InvoiceLineItem,
+  InvoiceHeader,
+  ConfidenceScores,
+  InvoiceValidator,
+  InvoiceDisplayUtils,
+  createDefaultExtractionResult
+} from "@/lib/invoice-types"
+
+// Extended types for the review interface
 interface InvoiceField {
   value: string | number
   confidence: number
   status: "validated" | "needs_review" | "error"
   editable?: boolean
   suggestions?: string[]
-}
-
-interface LineItem {
-  id: string
-  description: string
-  quantity: number
-  unitPrice: number
-  amount: number
-  confidence: number
-  status: "validated" | "needs_review" | "error"
-  taxCode?: string
-  accountCode?: string
 }
 
 interface ValidationIssue {
@@ -107,7 +108,13 @@ interface Comment {
 }
 
 // Invoice Review Component
-export function InvoiceReview({ invoice }: { invoice: Invoice }) {
+export function InvoiceReview({
+  invoice,
+  onApprovalComplete
+}: {
+  invoice: Invoice
+  onApprovalComplete?: (updatedInvoice: Invoice) => void
+}) {
   const [activeTab, setActiveTab] = useState("summary")
   const [isEditing, setIsEditing] = useState(false)
   const [editedFields, setEditedFields] = useState<Record<string, any>>({})
@@ -115,23 +122,29 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [newComment, setNewComment] = useState("")
   const [expandedSections, setExpandedSections] = useState<string[]>(["basic", "vendor", "amounts"])
+  const [isApproving, setIsApproving] = useState(false)
+  const [approvalNotes, setApprovalNotes] = useState("")
+  const { toast } = useToast()
 
   const ConfidenceBadge = ({ confidence }: { confidence: number }) => {
+    // Use safe display function to prevent NaN display
+    const displayConfidence = InvoiceDisplayUtils.formatPercentage(confidence)
+
     if (confidence >= 0.95)
       return (
         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-          High: {(confidence * 100).toFixed(0)}%
+          High: {displayConfidence}
         </Badge>
       )
     if (confidence >= 0.85)
       return (
         <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-          Good: {(confidence * 100).toFixed(0)}%
+          Good: {displayConfidence}
         </Badge>
       )
     return (
       <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-        Review: {(confidence * 100).toFixed(0)}%
+        Review: {displayConfidence}
       </Badge>
     )
   }
@@ -238,6 +251,114 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
     // Here you would save the comment to the backend
   }
 
+  const handleApproveAndProcess = async () => {
+    if (isApproving) return
+
+    setIsApproving(true)
+
+    try {
+      toast({
+        title: "Approving Invoice",
+        description: `Processing invoice ${invoice.invoiceNumber || invoice.id}...`,
+      })
+
+      // Call the approval API
+      const updatedInvoice = await workflow.approve(invoice.id, approvalNotes || undefined)
+
+      toast({
+        title: "Invoice Approved",
+        description: `Invoice ${invoice.invoiceNumber || invoice.id} has been approved and is being processed.`,
+        variant: "default",
+      })
+
+      // Notify parent component of successful approval
+      if (onApprovalComplete) {
+        onApprovalComplete({
+          ...invoice,
+          ...updatedInvoice,
+          status: "approved",
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: "Current User", // This would come from auth context
+        })
+      }
+
+      setApprovalNotes("")
+
+    } catch (error) {
+      console.error("Approval failed:", error)
+      toast({
+        title: "Approval Failed",
+        description: error instanceof Error ? error.message : "Failed to approve invoice. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsApproving(false)
+    }
+  }
+
+  const handleReject = async () => {
+    const reason = prompt("Please provide a reason for rejection:")
+    if (!reason?.trim()) return
+
+    try {
+      const updatedInvoice = await workflow.reject(invoice.id, reason)
+
+      toast({
+        title: "Invoice Rejected",
+        description: `Invoice ${invoice.invoiceNumber || invoice.id} has been rejected.`,
+        variant: "destructive",
+      })
+
+      if (onApprovalComplete) {
+        onApprovalComplete({
+          ...invoice,
+          ...updatedInvoice,
+          status: "rejected",
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: "Current User",
+        })
+      }
+    } catch (error) {
+      console.error("Rejection failed:", error)
+      toast({
+        title: "Rejection Failed",
+        description: error instanceof Error ? error.message : "Failed to reject invoice. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleRequestMoreInfo = async () => {
+    const requests = prompt("Please specify what information you need:")
+    if (!requests?.trim()) return
+
+    try {
+      const updatedInvoice = await workflow.requestInfo(invoice.id, [requests])
+
+      toast({
+        title: "Information Requested",
+        description: `Requested additional information for invoice ${invoice.invoiceNumber || invoice.id}.`,
+      })
+
+      if (onApprovalComplete) {
+        onApprovalComplete({
+          ...invoice,
+          ...updatedInvoice,
+          status: "needs_more_info",
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: "Current User",
+        })
+      }
+    } catch (error) {
+      console.error("Request failed:", error)
+      toast({
+        title: "Request Failed",
+        description: error instanceof Error ? error.message : "Failed to request more information. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const renderPDFPreview = () => (
     <div className="border rounded-lg bg-white p-4">
       <div className="flex items-center justify-between mb-4">
@@ -279,15 +400,15 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-2">
                 <p className="text-sm font-semibold">FROM:</p>
-                <p className="text-sm">{invoice.extractedFields.vendorName?.value || "Vendor Name"}</p>
+                <p className="text-sm">{invoice.extractedFields?.vendorName?.value || invoice.vendorName || "Vendor Name"}</p>
                 <p className="text-sm">Vendor Address</p>
                 <p className="text-sm">City, State ZIP</p>
               </div>
               <div className="text-right space-y-2">
-                <p className="text-sm"><strong>Invoice #:</strong> {invoice.extractedFields.invoiceNumber?.value || "N/A"}</p>
-                <p className="text-sm"><strong>Date:</strong> {invoice.extractedFields.invoiceDate?.value || "N/A"}</p>
-                <p className="text-sm"><strong>Due:</strong> {invoice.extractedFields.dueDate?.value || "N/A"}</p>
-                <p className="text-sm"><strong>PO:</strong> {invoice.extractedFields.purchaseOrder?.value || "N/A"}</p>
+                <p className="text-sm"><strong>Invoice #:</strong> {invoice.extractedFields?.invoiceNumber?.value || invoice.invoiceNumber || "N/A"}</p>
+                <p className="text-sm"><strong>Date:</strong> {invoice.extractedFields?.invoiceDate?.value || invoice.invoiceDate || "N/A"}</p>
+                <p className="text-sm"><strong>Due:</strong> {invoice.extractedFields?.dueDate?.value || invoice.dueDate || "N/A"}</p>
+                <p className="text-sm"><strong>PO:</strong> {invoice.extractedFields?.purchaseOrder?.value || invoice.purchaseOrder || "N/A"}</p>
               </div>
             </div>
 
@@ -302,12 +423,12 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {invoice.lineItems.map((item, idx) => (
+                  {invoice.lineItems?.map((item, idx) => (
                     <tr key={item.id} className="border-b">
                       <td className="py-2">{item.description}</td>
                       <td className="text-center py-2">{item.quantity}</td>
-                      <td className="text-right py-2">${item.unitPrice.toFixed(2)}</td>
-                      <td className="text-right py-2">${item.amount.toFixed(2)}</td>
+                      <td className="text-right py-2">{InvoiceDisplayUtils.formatCurrency(item.unitPrice)}</td>
+                      <td className="text-right py-2">{InvoiceDisplayUtils.formatCurrency(item.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -315,7 +436,12 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
                   <tr>
                     <td colSpan={3} className="text-right py-2 font-semibold">TOTAL:</td>
                     <td className="text-right py-2 font-bold">
-                      {invoice.extractedFields.totalAmount?.value || "$0.00"}
+                      {typeof invoice.extractedFields?.totalAmount?.value === "number"
+                        ? InvoiceDisplayUtils.formatCurrency(invoice.extractedFields?.totalAmount?.value)
+                        : typeof invoice.totalAmount === "number"
+                        ? InvoiceDisplayUtils.formatCurrency(invoice.totalAmount)
+                        : InvoiceDisplayUtils.formatCurrency(0)
+                      }
                     </td>
                   </tr>
                 </tfoot>
@@ -346,19 +472,26 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
             {invoice.status.replace("_", " ")}
           </Badge>
           <div className="text-right">
-            <p className="text-2xl font-bold text-slate-900">{invoice.extractedFields.totalAmount?.value || "$0.00"}</p>
-            <p className="text-sm text-slate-500">{invoice.extractedFields.currency?.value || "USD"}</p>
+            <p className="text-2xl font-bold text-slate-900">
+              {typeof invoice.extractedFields?.totalAmount?.value === "number"
+                ? InvoiceDisplayUtils.formatCurrency(invoice.extractedFields?.totalAmount?.value)
+                : typeof invoice.totalAmount === "number"
+                ? InvoiceDisplayUtils.formatCurrency(invoice.totalAmount)
+                : InvoiceDisplayUtils.formatCurrency(0)
+              }
+            </p>
+            <p className="text-sm text-slate-500">{invoice.extractedFields?.currency?.value || invoice.currency || "USD"}</p>
           </div>
         </div>
       </div>
 
       {/* Validation Issues */}
-      {invoice.validationIssues.length > 0 && (
+      {invoice.validationIssues?.length > 0 && (
         <Alert className="border-amber-200 bg-amber-50">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle>Validation Alerts ({invoice.validationIssues.length})</AlertTitle>
+          <AlertTitle>Validation Alerts ({invoice.validationIssues?.length || 0})</AlertTitle>
           <AlertDescription className="mt-2 space-y-2">
-            {invoice.validationIssues.map((issue) => (
+            {invoice.validationIssues?.map((issue) => (
               <div key={issue.id} className="flex items-start gap-2 text-sm">
                 <span className="text-amber-600 font-semibold min-w-fit">{issue.field}:</span>
                 <span className="text-amber-800">{issue.message}</span>
@@ -393,22 +526,22 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
                 <div className="space-y-3">
                   <EditableField
                     fieldKey="invoiceNumber"
-                    field={invoice.extractedFields.invoiceNumber!}
+                    field={invoice.extractedFields?.invoiceNumber || { value: invoice.invoiceNumber || '', confidence: 0, source: 'system' }}
                     label="Invoice Number"
                   />
                   <EditableField
                     fieldKey="invoiceDate"
-                    field={invoice.extractedFields.invoiceDate!}
+                    field={invoice.extractedFields?.invoiceDate || { value: invoice.invoiceDate || '', confidence: 0, source: 'system' }}
                     label="Invoice Date"
                   />
                   <EditableField
                     fieldKey="dueDate"
-                    field={invoice.extractedFields.dueDate!}
+                    field={invoice.extractedFields?.dueDate || { value: invoice.dueDate || '', confidence: 0, source: 'system' }}
                     label="Due Date"
                   />
                   <EditableField
                     fieldKey="paymentTerms"
-                    field={invoice.extractedFields.paymentTerms!}
+                    field={invoice.extractedFields?.paymentTerms || { value: '', confidence: 0, source: 'system' }}
                     label="Payment Terms"
                   />
                 </div>
@@ -422,17 +555,17 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
                 <div className="space-y-3">
                   <EditableField
                     fieldKey="vendorName"
-                    field={invoice.extractedFields.vendorName!}
+                    field={invoice.extractedFields?.vendorName || { value: invoice.vendorName || '', confidence: 0, source: 'system' }}
                     label="Vendor Name"
                   />
                   <EditableField
                     fieldKey="vendorId"
-                    field={invoice.extractedFields.vendorId!}
+                    field={invoice.extractedFields?.vendorId || { value: '', confidence: 0, source: 'system' }}
                     label="Vendor ID"
                   />
                   <EditableField
                     fieldKey="purchaseOrder"
-                    field={invoice.extractedFields.purchaseOrder!}
+                    field={invoice.extractedFields?.purchaseOrder || { value: invoice.purchaseOrder || '', confidence: 0, source: 'system' }}
                     label="Purchase Order"
                   />
                 </div>
@@ -450,12 +583,12 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50">
                     <span className="text-slate-600 text-sm">Tax</span>
-                    <span className="font-semibold">{invoice.extractedFields.taxAmount?.value || "$0.00"}</span>
+                    <span className="font-semibold">{invoice.extractedFields?.taxAmount?.value || invoice.taxAmount || "$0.00"}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-blue-50 border border-blue-200">
                     <span className="text-blue-700 font-medium text-sm">Total Amount</span>
                     <span className="text-xl font-bold text-blue-600">
-                      {invoice.extractedFields.totalAmount?.value || "$0.00"}
+                      {invoice.extractedFields?.totalAmount?.value || invoice.totalAmount || "$0.00"}
                     </span>
                   </div>
                 </div>
@@ -464,7 +597,7 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
 
             <TabsContent value="detailed" className="space-y-4">
               <div className="space-y-3">
-                {Object.entries(invoice.extractedFields).map(([key, field]) => (
+                {Object.entries(invoice.extractedFields || {}).map(([key, field]) => (
                   <EditableField
                     key={key}
                     fieldKey={key}
@@ -479,13 +612,13 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-semibold">Line Items</h3>
-                  <Badge variant="secondary">{invoice.lineItems.length} items</Badge>
+                  <Badge variant="secondary">{invoice.lineItems?.length || 0} items</Badge>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setSelectedItems(invoice.lineItems.map(item => item.id))}
+                    onClick={() => setSelectedItems(invoice.lineItems?.map(item => item.id) || [])}
                   >
                     <CheckSquare className="w-4 h-4 mr-1" />
                     Select All
@@ -502,7 +635,7 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
               </div>
 
               <div className="space-y-3">
-                {invoice.lineItems.map((item) => (
+                {invoice.lineItems?.map((item) => (
                   <div
                     key={item.id}
                     className={cn(
@@ -582,7 +715,7 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
             <CardContent>
               <ScrollArea className="h-48 mb-4">
                 <div className="space-y-3">
-                  {invoice.comments?.map((comment) => (
+                  {(Array.isArray(invoice.comments) ? invoice.comments : []).map((comment) => (
                     <div key={comment.id} className="border-b pb-3">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-sm">{comment.author}</span>
@@ -615,6 +748,26 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
         </div>
       </div>
 
+      {/* Approval Notes Section */}
+      {invoice.status === "pending_review" && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MessageSquare className="w-4 h-4" />
+              Approval Notes (Optional)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              placeholder="Add any notes for this approval..."
+              value={approvalNotes}
+              onChange={(e) => setApprovalNotes(e.target.value)}
+              className="min-h-[80px]"
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Action Buttons */}
       <div className="flex items-center justify-between border-t pt-6">
         <div className="flex gap-3">
@@ -629,17 +782,33 @@ export function InvoiceReview({ invoice }: { invoice: Invoice }) {
         </div>
 
         <div className="flex gap-3">
-          <Button variant="outline">
+          <Button
+            variant="outline"
+            onClick={handleRequestMoreInfo}
+            disabled={invoice.status !== "pending_review"}
+          >
             <AlertCircle className="w-4 h-4 mr-2" />
             Request More Info
           </Button>
-          <Button variant="destructive">
+          <Button
+            variant="destructive"
+            onClick={handleReject}
+            disabled={invoice.status !== "pending_review"}
+          >
             <X className="w-4 h-4 mr-2" />
             Reject
           </Button>
-          <Button className="bg-green-600 hover:bg-green-700">
-            <CheckCircle2 className="w-4 h-4 mr-2" />
-            Approve & Process
+          <Button
+            className="bg-green-600 hover:bg-green-700"
+            onClick={handleApproveAndProcess}
+            disabled={invoice.status !== "pending_review" || isApproving}
+          >
+            {isApproving ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 mr-2" />
+            )}
+            {isApproving ? "Processing..." : "Approve & Process"}
           </Button>
         </div>
       </div>

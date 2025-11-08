@@ -1,0 +1,118 @@
+# Page snapshot
+
+```yaml
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading [level=1]: Invoice Management
+          - paragraph: Process, review, and approve invoices with AI-powered automation
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - img
+                - generic: Connected
+            - button:
+              - img
+              - generic: "3"
+            - button:
+              - img
+          - button:
+            - img
+            - text: Refresh
+          - button:
+            - img
+            - text: Export
+          - button:
+            - img
+            - text: Upload Invoice
+      - generic:
+        - generic:
+          - generic:
+            - generic: Total Processed
+            - img
+          - generic:
+            - generic: 1,247
+            - paragraph: +12% from last month
+        - generic:
+          - generic:
+            - generic: Pending Review
+            - img
+          - generic:
+            - generic: "23"
+            - paragraph: 2% of total
+        - generic:
+          - generic:
+            - generic: Auto-Approval Rate
+            - img
+          - generic:
+            - generic: 78.5%
+            - progressbar
+        - generic:
+          - generic:
+            - generic: Total Amount
+            - img
+          - generic:
+            - generic: $342,150.75
+            - paragraph: This month
+      - generic:
+        - tablist:
+          - tab [selected]:
+            - img
+            - text: Dashboard
+          - tab:
+            - img
+            - text: Review
+          - tab:
+            - img
+            - text: Exceptions
+            - generic: "2"
+          - tab:
+            - img
+            - text: Approvals
+          - tab:
+            - img
+            - text: Exports
+          - tab:
+            - img
+            - text: Analytics
+          - tab:
+            - img
+            - text: Email
+        - tabpanel:
+          - generic:
+            - generic:
+              - img
+              - paragraph: Loading invoices...
+  - list
+  - button "Open Next.js Dev Tools" [ref=e6] [cursor=pointer]:
+    - img [ref=e7]
+  - alert
+  - dialog "Upload Invoices" [ref=e11]:
+    - generic [ref=e12]:
+      - heading "Upload Invoices" [level=2] [ref=e13]:
+        - img [ref=e14]
+        - text: Upload Invoices
+      - paragraph [ref=e17]: Upload PDF or image files for invoice processing. Supports drag-and-drop.
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - button "Choose File" [active] [ref=e20] [cursor=pointer]
+        - generic [ref=e21]:
+          - img [ref=e23]
+          - generic [ref=e26]:
+            - paragraph [ref=e27]: Drop invoice files here
+            - paragraph [ref=e28]: or click to browse
+          - generic [ref=e29]:
+            - generic [ref=e30]: PDF
+            - generic [ref=e31]: PNG
+            - generic [ref=e32]: JPG
+            - generic [ref=e33]: JPEG
+            - generic [ref=e34]: TIFF
+          - paragraph [ref=e35]: "Maximum file size: 50MB • Maximum files: 10"
+      - button "Cancel" [ref=e37]
+    - button "Close" [ref=e38]:
+      - img
+      - generic [ref=e39]: Close
+```

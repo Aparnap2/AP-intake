@@ -81,9 +81,13 @@ import {
   Printer,
   Share2,
   Copy,
-  Move
+  Move,
+  Paperclip
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { UploadModal } from "./UploadModal"
+import { invoiceApi } from "@/lib/invoice-api"
+import { InvoiceDisplayUtils } from "@/lib/invoice-types"
 
 // Types
 interface Invoice {
@@ -142,110 +146,25 @@ export function InvoiceDashboard({ onInvoiceSelect }: { onInvoiceSelect?: (invoi
   const [currentPage, setCurrentPage] = useState(1)
   const [showBulkActions, setShowBulkActions] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const invoicesPerPage = 25
 
-  // Mock data
-  const mockInvoices: Invoice[] = [
-    {
-      id: "1",
-      invoiceNumber: "INV-2024-5647",
-      vendorName: "Acme Corp Manufacturing",
-      vendorId: "VENDOR-4521",
-      amount: 12450.50,
-      currency: "USD",
-      dueDate: "2024-11-30",
-      status: "pending_review",
-      assignedTo: "john.doe",
-      uploadedAt: "2024-11-05T14:32:00Z",
-      priority: "high",
-      confidence: 0.95,
-      validationIssues: 2,
-      reviewer: "Jane Smith",
-      tags: ["Q4", "Manufacturing"],
-      hasAttachments: true,
-      comments: 3
-    },
-    {
-      id: "2",
-      invoiceNumber: "INV-2024-5648",
-      vendorName: "Global Supplies Inc",
-      vendorId: "VENDOR-1234",
-      amount: 8750.00,
-      currency: "USD",
-      dueDate: "2024-12-15",
-      status: "approved",
-      uploadedAt: "2024-11-04T09:15:00Z",
-      reviewedAt: "2024-11-05T10:30:00Z",
-      priority: "medium",
-      confidence: 0.98,
-      validationIssues: 0,
-      reviewer: "Bob Johnson",
-      tags: ["Office Supplies"],
-      hasAttachments: false,
-      comments: 1
-    },
-    {
-      id: "3",
-      invoiceNumber: "INV-2024-5649",
-      vendorName: "Tech Solutions Ltd",
-      vendorId: "VENDOR-6789",
-      amount: 25000.00,
-      currency: "USD",
-      dueDate: "2024-11-20",
-      status: "needs_more_info",
-      assignedTo: "sarah.wilson",
-      uploadedAt: "2024-11-03T16:45:00Z",
-      priority: "urgent",
-      confidence: 0.72,
-      validationIssues: 5,
-      tags: ["Software", "License"],
-      hasAttachments: true,
-      comments: 7
-    },
-    {
-      id: "4",
-      invoiceNumber: "INV-2024-5650",
-      vendorName: "Office Depot",
-      vendorId: "VENDOR-2468",
-      amount: 1250.75,
-      currency: "USD",
-      dueDate: "2024-12-01",
-      status: "processing",
-      uploadedAt: "2024-11-06T11:20:00Z",
-      priority: "low",
-      confidence: 0.91,
-      validationIssues: 1,
-      tags: ["Stationery"],
-      hasAttachments: false,
-      comments: 0
-    },
-    {
-      id: "5",
-      invoiceNumber: "INV-2024-5651",
-      vendorName: "Cleaning Services Co",
-      vendorId: "VENDOR-1357",
-      amount: 3500.00,
-      currency: "USD",
-      dueDate: "2024-11-25",
-      status: "rejected",
-      uploadedAt: "2024-11-02T13:10:00Z",
-      reviewedAt: "2024-11-03T09:45:00Z",
-      priority: "medium",
-      confidence: 0.65,
-      validationIssues: 3,
-      reviewer: "Mike Davis",
-      tags: ["Services", "Monthly"],
-      hasAttachments: true,
-      comments: 5
-    }
-  ]
-
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setInvoices(mockInvoices)
-      setLoading(false)
-    }, 1000)
+    const loadInvoices = async () => {
+      try {
+        setLoading(true)
+        const response = await invoiceApi.getInvoices()
+        setInvoices(response.invoices)
+      } catch (error) {
+        console.error('Failed to load invoices:', error)
+        // Handle error appropriately - could set empty array or show error message
+        setInvoices([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadInvoices()
   }, [])
 
   const handleSort = (column: string) => {
@@ -254,6 +173,25 @@ export function InvoiceDashboard({ onInvoiceSelect }: { onInvoiceSelect?: (invoi
     } else {
       setSortColumn(column)
       setSortDirection("asc")
+    }
+  }
+
+  const handleUploadSuccess = (uploadedInvoices: any[]) => {
+    console.log("Upload successful:", uploadedInvoices)
+    // Refresh the invoice list after successful upload
+    loadInvoices()
+  }
+
+  const loadInvoices = async () => {
+    try {
+      setLoading(true)
+      const response = await invoiceApi.getInvoices()
+      setInvoices(response.invoices)
+    } catch (error) {
+      console.error('Failed to load invoices:', error)
+      setInvoices([])
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -385,7 +323,8 @@ export function InvoiceDashboard({ onInvoiceSelect }: { onInvoiceSelect?: (invoi
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -393,7 +332,7 @@ export function InvoiceDashboard({ onInvoiceSelect }: { onInvoiceSelect?: (invoi
           <p className="text-slate-600">Review and process invoice submissions</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setUploadModalOpen(true)}>
             <Upload className="w-4 h-4 mr-2" />
             Upload Invoice
           </Button>
@@ -451,7 +390,7 @@ export function InvoiceDashboard({ onInvoiceSelect }: { onInvoiceSelect?: (invoi
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats.totalAmount.toFixed(2)}</div>
+            <div className="text-2xl font-bold">{InvoiceDisplayUtils.formatCurrency(stats.totalAmount)}</div>
             <p className="text-xs text-muted-foreground">
               Across all invoices
             </p>
@@ -488,7 +427,7 @@ export function InvoiceDashboard({ onInvoiceSelect }: { onInvoiceSelect?: (invoi
                 )}
               </Button>
 
-              <Button variant="outline" onClick={() => setInvoices(mockInvoices)}>
+              <Button variant="outline" onClick={loadInvoices}>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Refresh
               </Button>
@@ -658,13 +597,17 @@ export function InvoiceDashboard({ onInvoiceSelect }: { onInvoiceSelect?: (invoi
                     </TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{invoice.vendorName}</div>
-                        <div className="text-sm text-slate-500">{invoice.vendorId}</div>
+                        <div className="font-medium">{invoice.vendorName || (invoice.vendorId ? `Vendor ${invoice.vendorId}` : "Unknown Vendor")}</div>
+                        {invoice.vendorId && <div className="text-sm text-slate-500">{invoice.vendorId}</div>}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="font-semibold">${invoice.amount.toFixed(2)}</div>
-                      <div className="text-sm text-slate-500">{invoice.currency}</div>
+                      <div className="font-semibold">
+                        {InvoiceDisplayUtils.formatCurrency(invoice.amount)}
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        {invoice.currency || 'USD'}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
@@ -695,8 +638,8 @@ export function InvoiceDashboard({ onInvoiceSelect }: { onInvoiceSelect?: (invoi
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span className={cn("font-semibold", getConfidenceColor(invoice.confidence))}>
-                          {(invoice.confidence * 100).toFixed(0)}%
+                        <span className={cn("font-semibold", getConfidenceColor(invoice.confidence || 0))}>
+                          {((invoice.confidence || 0) * 100).toFixed(0)}%
                         </span>
                         {invoice.validationIssues > 0 && (
                           <Badge variant="outline" className="text-amber-600 border-amber-200">
@@ -818,5 +761,13 @@ export function InvoiceDashboard({ onInvoiceSelect }: { onInvoiceSelect?: (invoi
         </CardContent>
       </Card>
     </div>
+
+      {/* Upload Modal */}
+      <UploadModal
+        open={uploadModalOpen}
+        onOpenChange={setUploadModalOpen}
+        onSuccess={handleUploadSuccess}
+      />
+    </>
   )
 }

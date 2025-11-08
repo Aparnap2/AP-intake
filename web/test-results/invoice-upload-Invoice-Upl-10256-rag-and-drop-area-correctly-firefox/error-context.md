@@ -1,0 +1,91 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Invoice Management" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Process, review, and approve invoices with AI-powered automation
+      - generic [ref=e8]:
+        - generic [ref=e9]:
+          - generic [ref=e11]:
+            - img [ref=e12]
+            - generic [ref=e17]: Connected
+          - button "4" [ref=e18]:
+            - img
+            - generic [ref=e19]: "4"
+          - button [ref=e20]:
+            - img
+        - button "Refresh" [ref=e21]:
+          - img
+          - text: Refresh
+        - button "Export" [ref=e22]:
+          - img
+          - text: Export
+        - button "Upload Invoice" [ref=e23]:
+          - img
+          - text: Upload Invoice
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - generic [ref=e27]: Total Processed
+          - img [ref=e28]
+        - generic [ref=e34]:
+          - generic [ref=e35]: 1,247
+          - paragraph [ref=e36]: +12% from last month
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - generic [ref=e39]: Pending Review
+          - img [ref=e40]
+        - generic [ref=e43]:
+          - generic [ref=e44]: "23"
+          - paragraph [ref=e45]: 2% of total
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - generic [ref=e48]: Auto-Approval Rate
+          - img [ref=e49]
+        - generic [ref=e52]:
+          - generic [ref=e53]: 78.5%
+          - progressbar [ref=e54]
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - generic [ref=e58]: Total Amount
+          - img [ref=e59]
+        - generic [ref=e62]:
+          - generic [ref=e63]: $342,150.75
+          - paragraph [ref=e64]: This month
+    - generic [ref=e65]:
+      - tablist [ref=e66]:
+        - tab "Dashboard" [selected] [ref=e67]:
+          - img
+          - text: Dashboard
+        - tab "Review" [ref=e68]:
+          - img
+          - text: Review
+        - tab "Exceptions 2" [ref=e69]:
+          - img
+          - text: Exceptions
+          - generic [ref=e70]: "2"
+        - tab "Approvals" [ref=e71]:
+          - img
+          - text: Approvals
+        - tab "Exports" [ref=e72]:
+          - img
+          - text: Exports
+        - tab "Analytics" [ref=e73]:
+          - img
+          - text: Analytics
+        - tab "Email" [ref=e74]:
+          - img
+          - text: Email
+      - tabpanel "Dashboard" [ref=e75]:
+        - generic [ref=e77]:
+          - img [ref=e78]
+          - paragraph [ref=e83]: Loading invoices...
+  - region "Notifications (F8)":
+    - list
+  - button "Open Next.js Dev Tools" [ref=e89] [cursor=pointer]:
+    - img [ref=e90]
+  - alert [ref=e94]
+```

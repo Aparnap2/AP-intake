@@ -6,11 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { KPIDashboard } from "@/components/dashboard/KPIDashboard"
-import { RealTimeMetrics } from "@/components/dashboard/RealTimeMetrics"
-import { MetricsGrid, commonMetrics } from "@/components/dashboard/MetricCards"
-import { TrendChart, generateMockTrendData } from "@/components/dashboard/TrendCharts"
-import { analyticsService } from "@/services/analyticsService"
+import { cn } from "@/lib/utils"
 import {
   BarChart3,
   TrendingUp,
@@ -32,9 +28,18 @@ export default function AnalyticsPage() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
 
   // Mock trend data for demonstration
-  const volumeTrendData = generateMockTrendData(30, 50, 0.3)
-  const accuracyTrendData = generateMockTrendData(30, 0.92, 0.05)
-  const exceptionTrendData = generateMockTrendData(30, 8, 0.4)
+  const volumeTrendData = Array.from({ length: 30 }, (_, i) => ({
+    date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    value: Math.floor(50 + Math.random() * 20)
+  }))
+  const accuracyTrendData = Array.from({ length: 30 }, (_, i) => ({
+    date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    value: 0.92 + (Math.random() - 0.5) * 0.1
+  }))
+  const exceptionTrendData = Array.from({ length: 30 }, (_, i) => ({
+    date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    value: Math.floor(8 + Math.random() * 6)
+  }))
 
   const timeRanges = [
     { value: "7d", label: "Last 7 days" },
@@ -135,47 +140,118 @@ export default function AnalyticsPage() {
 
         {/* Overview Tab - Main KPI Dashboard */}
         <TabsContent value="overview" className="space-y-6">
-          <KPIDashboard />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">1,247</div>
+                <p className="text-xs text-muted-foreground">+12% from last month</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Processing Rate</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">94.7%</div>
+                <p className="text-xs text-muted-foreground">+2.1% improvement</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Exceptions</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">8.2%</div>
+                <p className="text-xs text-muted-foreground">-1.5% from last month</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Avg. Time</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">2.4h</div>
+                <p className="text-xs text-muted-foreground">-30min improvement</p>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Real-Time Tab */}
         <TabsContent value="realtime" className="space-y-6">
-          <RealTimeMetrics />
+          <Card>
+            <CardHeader>
+              <CardTitle>Real-Time Metrics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64 flex items-center justify-center text-slate-500">
+                <div className="text-center">
+                  <Activity className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <p>Real-time monitoring would go here</p>
+                  <p className="text-sm">Live processing metrics and alerts</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Trends Tab */}
         <TabsContent value="trends" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <TrendChart
-              title="Invoice Volume Trend"
-              data={volumeTrendData}
-              type="area"
-              dataKey="value"
-              color="hsl(var(--chart-1))"
-              height={350}
-              description="Daily invoice volume over the selected period"
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle>Invoice Volume Trend</CardTitle>
+                <p className="text-sm text-muted-foreground">Daily invoice volume over the selected period</p>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64 flex items-center justify-center text-slate-500">
+                  <div className="text-center">
+                    <BarChart3 className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                    <p>Chart visualization would go here</p>
+                    <p className="text-sm">Volume: {volumeTrendData.reduce((sum, d) => sum + d.value, 0)} total</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-            <TrendChart
-              title="Extraction Accuracy Trend"
-              data={accuracyTrendData.map(item => ({ ...item, value: item.value * 100 }))}
-              type="line"
-              dataKey="value"
-              color="hsl(var(--chart-2))"
-              height={350}
-              description="Average confidence score for document extraction"
-              formatValue={(value) => `${value.toFixed(1)}%`}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle>Extraction Accuracy Trend</CardTitle>
+                <p className="text-sm text-muted-foreground">Average confidence score for document extraction</p>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64 flex items-center justify-center text-slate-500">
+                  <div className="text-center">
+                    <TrendingUp className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                    <p>Chart visualization would go here</p>
+                    <p className="text-sm">Accuracy: {(accuracyTrendData.reduce((sum, d) => sum + d.value, 0) / accuracyTrendData.length * 100).toFixed(1)}%</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-            <TrendChart
-              title="Exception Trend"
-              data={exceptionTrendData}
-              type="bar"
-              dataKey="value"
-              color="hsl(var(--destructive))"
-              height={350}
-              description="Daily exception count over time"
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle>Exception Trend</CardTitle>
+                <p className="text-sm text-muted-foreground">Daily exception count over time</p>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64 flex items-center justify-center text-slate-500">
+                  <div className="text-center">
+                    <Activity className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                    <p>Chart visualization would go here</p>
+                    <p className="text-sm">Exceptions: {exceptionTrendData.reduce((sum, d) => sum + d.value, 0)} total</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
@@ -209,11 +285,38 @@ export default function AnalyticsPage() {
 
         {/* Performance Tab */}
         <TabsContent value="performance" className="space-y-6">
-          <MetricsGrid
-            metrics={Object.values(commonMetrics)}
-            columns={3}
-            gap="lg"
-          />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Processing Speed</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">2.3s</div>
+                <p className="text-xs text-muted-foreground">Average processing time</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">96.8%</div>
+                <p className="text-xs text-muted-foreground">Successful processing</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Daily Volume</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">847</div>
+                <p className="text-xs text-muted-foreground">Invoices processed today</p>
+              </CardContent>
+            </Card>
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
@@ -370,7 +473,3 @@ export default function AnalyticsPage() {
   )
 }
 
-// Utility function for conditional class names
-function cn(...classes: (string | undefined | null | false)[]) {
-  return classes.filter(Boolean).join(" ")
-}

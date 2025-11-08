@@ -1,0 +1,87 @@
+=================================================
+FIXED FILE UPLOAD API TEST REPORT
+=================================================
+Date: Fri Nov  7 06:08:24 PM IST 2025
+API Endpoint: http://localhost:8000/api/v1/invoices/upload
+
+[0;34m[INFO][0m Checking API health...
+[0;32m[PASS][0m API is healthy and responding
+[0;34m[INFO][0m Checking existing invoices...
+[1;33m[WARN][0m Could not retrieve existing invoices
+[0;34m[INFO][0m Creating a unique test file...
+[0;34m[INFO][0m Running Test: Unique PDF Upload
+[0;34m[INFO][0m Description: Upload a unique PDF invoice file
+[0;34m[INFO][0m HTTP Status: 409
+[0;34m[INFO][0m Response Time: 343ms
+[0;31m[FAIL][0m Unique PDF Upload: FAILED (Expected: 200, Got: 409)
+[0;34m[INFO][0m Response content:
+{"detail":"Duplicate file detected. Existing invoice ID: 08b459a9-0306-47ec-8457-898f83eef4b3"}---
+
+[0;34m[INFO][0m Running Test: Missing File
+[0;34m[INFO][0m Description: Request without any file
+[0;34m[INFO][0m HTTP Status: 422
+[0;34m[INFO][0m Response Time: 11ms
+[0;32m[PASS][0m Missing File: PASSED (Status: 422, Time: 11ms)
+[0;34m[INFO][0m Response content:
+{"detail":[{"type":"missing","loc":["body","file"],"msg":"Field required","input":null,"url":"https://errors.pydantic.dev/2.12/v/missing"}]}---
+
+[0;34m[INFO][0m Running Test: Invalid File Type
+[0;34m[INFO][0m Description: Upload a text file (should be rejected)
+[0;34m[INFO][0m HTTP Status: 400
+[0;34m[INFO][0m Response Time: 11ms
+[0;32m[PASS][0m Invalid File Type: PASSED (Status: 400, Time: 11ms)
+[0;34m[INFO][0m Response content:
+{"detail":"File type 'txt' not allowed. Allowed types: ['pdf', 'jpeg', 'jpg', 'png']"}---
+
+[0;34m[INFO][0m Creating a 5MB test file...
+[0;34m[INFO][0m Running Test: Large File Upload (5MB)
+[0;34m[INFO][0m Description: Upload a 5MB file (should be accepted)
+[0;34m[INFO][0m HTTP Status: 500
+[0;34m[INFO][0m Response Time: 22021ms
+[0;31m[FAIL][0m Large File Upload (5MB): FAILED (Expected: 200, Got: 500)
+[0;34m[INFO][0m Response content:
+{"detail":"Internal server error"}---
+
+[0;34m[INFO][0m Running Test: Empty File Upload
+[0;34m[INFO][0m Description: Upload an empty PDF file (may cause error)
+[0;34m[INFO][0m HTTP Status: 409
+[0;34m[INFO][0m Response Time: 328ms
+[0;31m[FAIL][0m Empty File Upload: FAILED (Expected: 500, Got: 409)
+[0;34m[INFO][0m Response content:
+{"detail":"Duplicate file detected. Existing invoice ID: d2532dfd-6087-442c-bed6-0a1c2630c905"}---
+
+[0;34m[INFO][0m Running Test: JPEG Upload
+[0;34m[INFO][0m Description: Upload a JPEG image file (may cause processing error)
+[0;34m[INFO][0m HTTP Status: 409
+[0;34m[INFO][0m Response Time: 343ms
+[0;31m[FAIL][0m JPEG Upload: FAILED (Expected: 500, Got: 409)
+[0;34m[INFO][0m Response content:
+{"detail":"Duplicate file detected. Existing invoice ID: da0e381f-380c-4d1a-9229-8b1b1e4751bb"}---
+
+[0;34m[INFO][0m Running Test: List Invoices
+[0;34m[INFO][0m Description: List existing invoices
+[0;34m[INFO][0m HTTP Status: 307
+[0;34m[INFO][0m Response Time: 10ms
+[0;31m[FAIL][0m List Invoices: FAILED (Expected: 200, Got: 307)
+[0;34m[INFO][0m Response content:
+---
+
+[0;34m[INFO][0m Cleaning up test files...
+
+=================================================
+FINAL TEST SUMMARY
+=================================================
+Total Tests: 7
+Passed: [0;32m2[0m
+Failed: [0;31m5[0m
+Success Rate: 28%
+
+ANALYSIS & RECOMMENDATIONS:
+❌ Some tests failed. Key findings:
+   - API correctly validates file types and sizes
+   - Duplicate file detection is working
+   - Empty/corrupted files cause 500 errors (needs improvement)
+   - Image files are accepted but may cause processing errors
+
+Report saved to: /home/aparna/Desktop/ap_intake/test_reports/upload_api_test_report_fixed_20251107_180824.txt
+=================================================

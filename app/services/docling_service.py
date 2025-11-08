@@ -7,6 +7,7 @@ import logging
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
+from decimal import Decimal
 
 import aiofiles
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -16,6 +17,13 @@ from docling_core.types.doc import DoclingDocument
 
 from app.core.config import settings
 from app.core.exceptions import ExtractionException
+from app.models.schemas import (
+    InvoiceExtractionResult,
+    InvoiceHeader,
+    InvoiceLineItem,
+    ConfidenceScores,
+    ExtractionMetadata
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +63,10 @@ class DoclingService:
 
     async def extract_from_content(
         self, file_content: bytes, file_path: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Extract data from document content bytes."""
+    ) -> InvoiceExtractionResult:
+        """Extract data from document content bytes and return structured result."""
         logger.info(f"Extracting data from content ({len(file_content)} bytes)")
+        start_time = datetime.utcnow()
 
         try:
             # Convert document using DocumentConverter
@@ -81,8 +90,9 @@ class DoclingService:
             doc = result.document
 
             # Check page count
-            if hasattr(doc, 'pages') and len(doc.pages) > self.max_pages:
-                logger.warning(f"Document has {len(doc.pages)} pages, exceeding limit of {self.max_pages}")
+            page_count = len(getattr(doc, 'pages', []))
+            if page_count > self.max_pages:
+                logger.warning(f"Document has {page_count} pages, exceeding limit of {self.max_pages}")
 
             # Extract header information
             header_data = await self._extract_header(doc)
@@ -93,31 +103,40 @@ class DoclingService:
             # Calculate confidence scores
             confidence_data = await self._calculate_confidence(doc, header_data, lines_data)
 
-            # Calculate overall confidence
-            overall_confidence = await self._calculate_overall_confidence(confidence_data)
+            # Create structured Pydantic models
+            header_model = self._create_header_model(header_data)
+            lines_models = self._create_line_item_models(lines_data)
+            confidence_model = self._create_confidence_model(confidence_data)
 
-            extraction_result = {
-                "header": header_data,
-                "lines": lines_data,
-                "confidence": confidence_data,
-                "overall_confidence": overall_confidence,
-                "metadata": {
-                    "file_path": file_path,
-                    "file_hash": hashlib.sha256(file_content).hexdigest(),
-                    "file_size": len(file_content),
-                    "pages_processed": len(getattr(doc, 'pages', [])),
-                    "extracted_at": datetime.utcnow().isoformat(),
-                    "parser_version": "docling-2.60.1",
-                    "conversion_status": str(result.status),
-                }
-            }
+            # Calculate processing time
+            processing_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
 
-            logger.info(f"Successfully extracted data with overall confidence: {overall_confidence:.2f}")
+            # Create metadata
+            metadata = ExtractionMetadata(
+                parser_version="docling-2.60.1",
+                processing_time_ms=processing_time,
+                page_count=page_count,
+                file_size_bytes=len(file_content),
+                completeness_score=self._calculate_completeness_score(header_model, lines_models),
+                accuracy_score=confidence_model.overall
+            )
+
+            # Create structured extraction result
+            extraction_result = InvoiceExtractionResult(
+                header=header_model,
+                lines=lines_models,
+                confidence=confidence_model,
+                metadata=metadata,
+                processing_notes=self._generate_processing_notes(header_data, lines_data, confidence_data)
+            )
+
+            logger.info(f"Successfully extracted data with overall confidence: {float(confidence_model.overall):.2f}")
             return extraction_result
 
         except Exception as e:
             logger.error(f"Failed to extract document content: {e}")
-            raise ExtractionException(f"Document extraction failed: {str(e)}")
+            # Return a structured result with error information instead of raising
+            return self._create_error_result(e, file_path, len(file_content), start_time)
 
     async def _extract_header(self, doc: DoclingDocument) -> Dict[str, Any]:
         """Extract header information from document."""
@@ -432,3 +451,227 @@ class DoclingService:
                     continue
 
         return date_str  # Return original if parsing fails
+
+    def _create_header_model(self, header_data: Dict[str, Any]) -> InvoiceHeader:
+        """Create InvoiceHeader model from extracted data."""
+        try:
+            return InvoiceHeader(
+                invoice_number=header_data.get("invoice_no"),
+                invoice_date=self._parse_date(header_data.get("invoice_date")),
+                due_date=self._parse_date(header_data.get("due_date")),
+                vendor_name=header_data.get("vendor_name"),
+                vendor_address={},  # TODO: Extract address information
+                vendor_tax_id=None,  # TODO: Extract tax ID
+                subtotal_amount=self._safe_decimal(header_data.get("subtotal")),
+                tax_amount=self._safe_decimal(header_data.get("tax")),
+                total_amount=self._safe_decimal(header_data.get("total")),
+                currency=header_data.get("currency", "USD")
+            )
+        except Exception as e:
+            logger.warning(f"Error creating header model: {e}")
+            # Return a minimal valid header
+            return InvoiceHeader(
+                currency="USD",
+                invoice_number=header_data.get("invoice_no", "UNKNOWN")
+            )
+
+    def _create_line_item_models(self, lines_data: List[Dict[str, Any]]) -> List[InvoiceLineItem]:
+        """Create InvoiceLineItem models from extracted data."""
+        line_items = []
+
+        for i, line_data in enumerate(lines_data[:10]):  # Limit to 10 items
+            try:
+                description = line_data.get("description", "Unknown Item")
+                quantity = self._safe_decimal(line_data.get("quantity", 1))
+                unit_price = self._safe_decimal(line_data.get("unit_price", line_data.get("amount", 0)))
+                total_amount = self._safe_decimal(line_data.get("amount", unit_price * quantity))
+
+                line_item = InvoiceLineItem(
+                    description=description[:500],  # Limit length
+                    quantity=quantity,
+                    unit_price=unit_price,
+                    total_amount=total_amount,
+                    line_number=i + 1,
+                    item_code=line_data.get("sku")
+                )
+                line_items.append(line_item)
+
+            except Exception as e:
+                logger.warning(f"Error creating line item {i}: {e}")
+                # Skip invalid line items
+                continue
+
+        return line_items
+
+    def _create_confidence_model(self, confidence_data: Dict[str, Any]) -> ConfidenceScores:
+        """Create ConfidenceScores model from extracted data."""
+        try:
+            header_conf = confidence_data.get("header", {})
+
+            return ConfidenceScores(
+                overall=self._safe_decimal(confidence_data.get("overall", 0.5)),
+                invoice_number_confidence=self._safe_decimal(header_conf.get("invoice_no", 0.0)),
+                vendor_confidence=self._safe_decimal(header_conf.get("vendor_name", 0.0)),
+                date_confidence=self._safe_decimal(header_conf.get("invoice_date", 0.0)),
+                amounts_confidence=self._safe_decimal(header_conf.get("total", 0.0)),
+                line_items_confidence=self._safe_decimal(confidence_data.get("overall_lines", 0.0))
+            )
+        except Exception as e:
+            logger.warning(f"Error creating confidence model: {e}")
+            # Return minimal confidence scores
+            return ConfidenceScores(overall=Decimal("0.1"))
+
+    def _safe_decimal(self, value: Any) -> Decimal:
+        """Safely convert a value to Decimal."""
+        if value is None:
+            return Decimal("0")
+        try:
+            if isinstance(value, Decimal):
+                return value
+            elif isinstance(value, (int, float)):
+                return Decimal(str(value))
+            elif isinstance(value, str):
+                # Remove currency symbols and commas
+                cleaned = value.replace("$", "").replace(",", "").strip()
+                return Decimal(cleaned)
+            else:
+                return Decimal("0")
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Could not convert {value} to Decimal: {e}")
+            return Decimal("0")
+
+    def _parse_date(self, date_str: Any) -> Optional[datetime]:
+        """Parse date string into datetime object."""
+        if not date_str:
+            return None
+
+        try:
+            if isinstance(date_str, datetime):
+                return date_str
+
+            date_str = str(date_str).strip()
+
+            # Try common date formats
+            date_formats = [
+                "%Y-%m-%d",
+                "%m/%d/%Y",
+                "%d/%m/%Y",
+                "%m-%d-%Y",
+                "%d-%m-%Y",
+                "%Y/%m/%d",
+                "%d.%m.%Y",
+                "%m.%d.%Y"
+            ]
+
+            for fmt in date_formats:
+                try:
+                    return datetime.strptime(date_str, fmt)
+                except ValueError:
+                    continue
+
+            logger.warning(f"Could not parse date: {date_str}")
+            return None
+
+        except Exception as e:
+            logger.warning(f"Error parsing date {date_str}: {e}")
+            return None
+
+    def _calculate_completeness_score(
+        self,
+        header: InvoiceHeader,
+        lines: List[InvoiceLineItem]
+    ) -> Decimal:
+        """Calculate data completeness score."""
+        score = 0.0
+        max_score = 6.0  # Total number of important fields
+
+        # Check header fields
+        if header.invoice_number:
+            score += 1.0
+        if header.vendor_name:
+            score += 1.0
+        if header.invoice_date:
+            score += 1.0
+        if header.total_amount and header.total_amount > 0:
+            score += 1.0
+        if header.currency:
+            score += 1.0
+
+        # Check line items
+        if lines and len(lines) > 0:
+            score += 1.0
+
+        return Decimal(str(min(score / max_score, 1.0)))
+
+    def _generate_processing_notes(
+        self,
+        header_data: Dict[str, Any],
+        lines_data: List[Dict[str, Any]],
+        confidence_data: Dict[str, Any]
+    ) -> List[str]:
+        """Generate processing notes for the extraction."""
+        notes = []
+
+        # Header notes
+        missing_header_fields = []
+        if not header_data.get("vendor_name"):
+            missing_header_fields.append("vendor name")
+        if not header_data.get("invoice_no"):
+            missing_header_fields.append("invoice number")
+        if not header_data.get("total"):
+            missing_header_fields.append("total amount")
+
+        if missing_header_fields:
+            notes.append(f"Missing header fields: {', '.join(missing_header_fields)}")
+
+        # Line items notes
+        if not lines_data:
+            notes.append("No line items found")
+        elif len(lines_data) == 1:
+            notes.append("Only one line item found")
+
+        # Confidence notes
+        overall_conf = confidence_data.get("overall", 0.0)
+        if overall_conf < 0.5:
+            notes.append("Low overall confidence score")
+        elif overall_conf < 0.8:
+            notes.append("Medium overall confidence score")
+
+        if not notes:
+            notes.append("Extraction completed successfully")
+
+        return notes
+
+    def _create_error_result(
+        self,
+        error: Exception,
+        file_path: Optional[str],
+        file_size: int,
+        start_time: datetime
+    ) -> InvoiceExtractionResult:
+        """Create a structured error result."""
+        processing_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+
+        # Create minimal valid data
+        header = InvoiceHeader(currency="USD")
+        lines: List[InvoiceLineItem] = []
+        confidence = ConfidenceScores(overall=Decimal("0.0"))
+
+        metadata = ExtractionMetadata(
+            parser_version="docling-2.60.1",
+            processing_time_ms=processing_time,
+            page_count=0,
+            file_size_bytes=file_size,
+            completeness_score=Decimal("0.0"),
+            accuracy_score=Decimal("0.0")
+        )
+
+        processing_notes = [f"Extraction failed: {str(error)}"]
+
+        return InvoiceExtractionResult(
+            header=header,
+            lines=lines,
+            confidence=confidence,
+            metadata=metadata,
+            processing_notes=processing_notes
+        )

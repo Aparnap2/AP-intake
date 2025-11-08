@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Upload Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Invoice Upload Demo</h1>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Quick Test Instructions</h2>
+            <ol class="list-decimal list-inside space-y-2 text-gray-700">
+                <li>Start the development server: <code class="bg-gray-100 px-2 py-1 rounded">npm run dev</code></li>
+                <li>Start the backend API: <code class="bg-gray-100 px-2 py-1 rounded">docker-compose up -d</code></li>
+                <li>Navigate to <a href="http://localhost:3000/invoices" class="text-blue-600 hover:underline">http://localhost:3000/invoices</a></li>
+                <li>Click the "Upload Invoice" button</li>
+                <li>Test with PDF or image files</li>
+                <li>Check browser console for API responses</li>
+            </ol>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Test Files</h2>
+            <p class="text-gray-600 mb-4">You can test the upload functionality with:</p>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li>PDF files (preferred)</li>
+                <li>PNG images</li>
+                <li>JPG/JPEG images</li>
+                <li>TIFF images</li>
+            </ul>
+            <p class="text-sm text-gray-500 mt-4">
+                File size limit: 50MB<br>
+                Maximum files: 10 per upload
+            </p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Expected Behavior</h2>
+            <div class="space-y-3">
+                <div class="flex items-start space-x-3">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-500 mt-0.5"></i>
+                    <div>
+                        <strong>Modal Opens:</strong> Upload modal should appear when clicking the upload button
+                    </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-500 mt-0.5"></i>
+                    <div>
+                        <strong>Drag & Drop:</strong> You can drag files onto the drop area or click to browse
+                    </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-500 mt-0.5"></i>
+                    <div>
+                        <strong>File Validation:</strong> Files are validated for type and size
+                    </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-500 mt-0.5"></i>
+                    <div>
+                        <strong>Progress Tracking:</strong> Upload progress is shown for each file
+                    </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-500 mt-0.5"></i>
+                    <div>
+                        <strong>Error Handling:</strong> Failed uploads show error messages
+                    </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-500 mt-0.5"></i>
+                    <div>
+                        <strong>List Refresh:</strong> Invoice list refreshes after successful upload
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">API Endpoints</h2>
+            <div class="space-y-3">
+                <div class="bg-gray-50 p-4 rounded">
+                    <code class="text-sm">POST /api/v1/invoices/upload</code>
+                    <p class="text-sm text-gray-600 mt-1">Uploads invoice files for processing</p>
+                </div>
+                <div class="bg-gray-50 p-4 rounded">
+                    <code class="text-sm">GET /api/v1/invoices</code>
+                    <p class="text-sm text-gray-600 mt-1">Retrieves list of processed invoices</p>
+                </div>
+                <div class="bg-gray-50 p-4 rounded">
+                    <code class="text-sm">GET /api/v1/invoices/{id}</code>
+                    <p class="text-sm text-gray-600 mt-1">Retrieves specific invoice details</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">Testing with Playwright</h2>
+            <p class="text-gray-600 mb-4">Run the automated tests:</p>
+            <div class="bg-gray-900 text-gray-100 p-4 rounded font-mono text-sm">
+                <div># Install dependencies</div>
+                <div>npm install</div>
+                <div class="mt-2"># Run tests</div>
+                <div>npx playwright test tests/invoice-upload.spec.ts</div>
+                <div class="mt-2"># Run tests in headed mode</div>
+                <div>npx playwright test tests/invoice-upload.spec.ts --headed</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

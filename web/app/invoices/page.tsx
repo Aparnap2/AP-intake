@@ -34,6 +34,7 @@ import { ExceptionResolution } from "@/components/invoice/ExceptionResolution"
 import { ApprovalWorkflow } from "@/components/invoice/ApprovalWorkflow"
 import { ExportManagement } from "@/components/invoice/ExportManagement"
 import { NotificationCenter } from "@/components/invoice/NotificationCenter"
+import { UploadModal } from "@/components/invoice/UploadModal"
 
 // Mock data for statistics
 const mockStats = {
@@ -92,6 +93,38 @@ export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   const [stats, setStats] = useState(mockStats)
   const [loading, setLoading] = useState(false)
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
+
+  const handleApprovalComplete = (updatedInvoice) => {
+    // Update the selected invoice with new status
+    setSelectedInvoice(updatedInvoice)
+
+    // Optionally update stats if needed
+    if (updatedInvoice.status === "approved") {
+      setStats(prev => ({
+        ...prev,
+        pendingReview: Math.max(0, prev.pendingReview - 1),
+        approved: prev.approved + 1
+      }))
+    } else if (updatedInvoice.status === "rejected") {
+      setStats(prev => ({
+        ...prev,
+        pendingReview: Math.max(0, prev.pendingReview - 1),
+        rejected: prev.rejected + 1
+      }))
+    } else if (updatedInvoice.status === "needs_more_info") {
+      setStats(prev => ({
+        ...prev,
+        pendingReview: Math.max(0, prev.pendingReview - 1),
+        needsMoreInfo: prev.needsMoreInfo + 1
+      }))
+    }
+
+    // Optional: Auto-navigate back to dashboard after successful approval
+    if (updatedInvoice.status === "approved") {
+      setTimeout(() => setActiveTab("dashboard"), 2000)
+    }
+  }
 
   useEffect(() => {
     // Simulate loading data
@@ -111,6 +144,13 @@ export default function InvoicesPage() {
     setTimeout(() => {
       setLoading(false)
     }, 1000)
+  }
+
+  const handleUploadSuccess = (invoices: any[]) => {
+    console.log("Upload successful:", invoices)
+    // Refresh the invoice list after successful upload
+    handleRefresh()
+    // Show success message or update stats if needed
   }
 
   return (
@@ -134,7 +174,7 @@ export default function InvoicesPage() {
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
-            <Button>
+            <Button onClick={() => setUploadModalOpen(true)}>
               <Upload className="w-4 h-4 mr-2" />
               Upload Invoice
             </Button>
@@ -248,7 +288,10 @@ export default function InvoicesPage() {
                     ← Back to Dashboard
                   </Button>
                 </div>
-                <InvoiceReview invoice={selectedInvoice} />
+                <InvoiceReview
+                  invoice={selectedInvoice}
+                  onApprovalComplete={handleApprovalComplete}
+                />
               </div>
             ) : (
               <Card>
@@ -417,6 +460,13 @@ export default function InvoicesPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Upload Modal */}
+        <UploadModal
+          open={uploadModalOpen}
+          onOpenChange={setUploadModalOpen}
+          onSuccess={handleUploadSuccess}
+        />
       </div>
     </div>
   )
