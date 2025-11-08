@@ -68,6 +68,7 @@ dependencies = [
     "reportlab>=4.4.4",
     "python-barcode>=0.15.1",
     "qrcode[pil]>=7.4.2",
+    "playwright>=1.55.0",
 ]
 
 [dependency-groups]

@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     DATABASE_POOL_SIZE: int = 10
     DATABASE_MAX_OVERFLOW: int = 20
+    DATABASE_POOL_TIMEOUT: int = 30
+    DATABASE_POOL_RECYCLE: int = 3600
+    DATABASE_POOL_PRE_PING: bool = True
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -99,8 +102,8 @@ class Settings(BaseSettings):
 
     # Export configuration
     EXPORT_PATH: str = "./exports"
-    QUICKBOOKS_SANDBOX_CLIENT_ID: Optional[str] = "ABks36hUKi4CnTlqhEKeztfPxZC083pJ4kH7vqPPtTXbNhTwRy"
-    QUICKBOOKS_SANDBOX_CLIENT_SECRET: Optional[str] = "tNca9AST3GahKyxVWYziia6vyODid81CV3CEQey7"
+    QUICKBOOKS_SANDBOX_CLIENT_ID: Optional[str] = None
+    QUICKBOOKS_SANDBOX_CLIENT_ID: Optional[str] = None
     QUICKBOOKS_REDIRECT_URI: Optional[str] = "http://localhost:8000/api/v1/quickbooks/callback"
     QUICKBOOKS_ENVIRONMENT: str = "sandbox"  # sandbox or production
     XERO_SANDBOX_CLIENT_ID: Optional[str] = None

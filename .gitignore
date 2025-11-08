@@ -342,6 +342,17 @@ test_invoice*.pdf
 /manual-integration-test.html
 /INTEGRATION_ANALYSIS_REPORT.md
 
+# Test reports and outputs
+/test_reports/*.txt
+/test_reports/*.html
+/web/test-results/
+/web/playwright-report/
+/web/.playwright-mcp/
+
+# Documentation build outputs
+/docs/_build/
+/docs/.DS_Store
+
 # Storage directories
 storage/
 uploads/

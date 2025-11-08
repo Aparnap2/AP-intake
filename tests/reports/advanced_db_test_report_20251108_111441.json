@@ -1,0 +1,184 @@
+{
+  "test_type": "advanced_database_testing",
+  "test_summary": {
+    "total_duration": 15.382517576217651,
+    "timestamp": "2025-11-08T11:14:41.228477",
+    "tests_run": 7,
+    "tests_passed": 6,
+    "success_rate": 85.71428571428571
+  },
+  "detailed_results": {
+    "concurrent_load": {
+      "status": "PASSED",
+      "duration": 0.5377302169799805,
+      "load_results": {
+        "concurrent_reads": {
+          "workers": 20,
+          "successful_workers": 20,
+          "total_operations": 3000,
+          "duration": 0.3712799549102783,
+          "throughput": 8080.156120265004,
+          "success_rate": 100.0
+        },
+        "concurrent_writes": {
+          "workers": 10,
+          "successful_workers": 10,
+          "total_operations": 200,
+          "duration": 0.031049013137817383,
+          "throughput": 6441.428560458884,
+          "success_rate": 100.0
+        },
+        "mixed_operations": {
+          "workers": 15,
+          "successful_workers": 15,
+          "total_operations": 495,
+          "duration": 0.037354469299316406,
+          "throughput": 13251.426383109092,
+          "success_rate": 100.0
+        }
+      },
+      "average_throughput": 9257.670354610993,
+      "overall_success_rate": 100.0
+    },
+    "index_analysis": {
+      "status": "FAILED",
+      "duration": 0.02426743507385254,
+      "error": "column \"tablename\" does not exist"
+    },
+    "scalability": {
+      "status": "PASSED",
+      "duration": 5.122495174407959,
+      "scalability_results": {
+        "load_10": {
+          "concurrency": 10,
+          "successful_workers": 10,
+          "total_operations": 200,
+          "duration": 0.11445951461791992,
+          "throughput": 1747.342723474102,
+          "success_rate": 100.0,
+          "avg_response_time": 0.0005722975730895996
+        },
+        "load_50": {
+          "concurrency": 50,
+          "successful_workers": 50,
+          "total_operations": 1000,
+          "duration": 0.83614182472229,
+          "throughput": 1195.9693564332015,
+          "success_rate": 100.0,
+          "avg_response_time": 0.00083614182472229
+        },
+        "load_100": {
+          "concurrency": 100,
+          "successful_workers": 100,
+          "total_operations": 2000,
+          "duration": 1.8031830787658691,
+          "throughput": 1109.1497161612874,
+          "success_rate": 100.0,
+          "avg_response_time": 0.0009015915393829346
+        },
+        "load_200": {
+          "concurrency": 200,
+          "successful_workers": 100,
+          "total_operations": 2000,
+          "duration": 1.9039340019226074,
+          "throughput": 1050.456579892152,
+          "success_rate": 50.0,
+          "avg_response_time": 0.0009519670009613037
+        }
+      },
+      "analysis": {
+        "performance_degradation": 39.882624869172034,
+        "peak_throughput": 1747.342723474102,
+        "base_throughput": 1747.342723474102,
+        "scalability_factor": 1.0
+      }
+    },
+    "backup_recovery": {
+      "status": "PASSED",
+      "duration": 0.1764659881591797,
+      "backup_results": {
+        "consistency_backup": {
+          "status": "PASSED",
+          "backup_verification": {
+            "records_before_backup": {
+              "vendors": 4,
+              "invoices": 1
+            },
+            "foreign_key_integrity": true,
+            "data_consistency": true,
+            "backup_timestamp": "2025-11-08T11:14:41.088002"
+          }
+        },
+        "pitr_simulation": {
+          "status": "PASSED",
+          "recovery_simulation": {
+            "recovery_point": "2025-11-08T11:14:41.219025",
+            "original_name": "PITR Test",
+            "updated_name": "Updated PITR Test",
+            "current_state": "Updated PITR Test",
+            "recovery_successful": true
+          }
+        }
+      }
+    },
+    "connection_stress": {
+      "status": "PASSED",
+      "duration": 8.172796487808228,
+      "rapid_cycling": {
+        "cycles": 14073,
+        "duration": 5.000010013580322,
+        "cycles_per_second": 2814.5940947465815
+      },
+      "pool_exhaustion": {
+        "handled": true,
+        "timeout_occurred": true
+      },
+      "timeout_handling": {
+        "handled": true,
+        "timeout_working": true
+      }
+    },
+    "deadlock_detection": {
+      "status": "PASSED",
+      "duration": 1.0951950550079346,
+      "deadlock_results": {
+        "transactions_run": 2,
+        "deadlocks_detected": 1,
+        "duration": 1.0951828956604004,
+        "results": [
+          "success",
+          "deadlock: deadlock detected\nDETAIL:  Process 614 waits for ShareRowExclusiveLock on relation 16481 of database 16384; blocked by process 613.\nProcess 613 waits for ShareRowExclusiveLock on relation 16500 of database 16384; blocked by process 614.\nHINT:  See server log for query details."
+        ]
+      }
+    },
+    "transaction_isolation": {
+      "status": "PASSED",
+      "duration": 0.24394607543945312,
+      "isolation_results": {
+        "read_committed": {
+          "status": "PASSED",
+          "uncommitted_not_visible": true,
+          "committed_visible": true
+        },
+        "repeatable_read": {
+          "status": "PASSED",
+          "repeatable_read_working": true,
+          "consistent_snapshot": true
+        }
+      }
+    }
+  },
+  "production_readiness": {
+    "ready": true,
+    "critical_issues": [],
+    "performance_issues": [
+      "High performance degradation: 39.9%"
+    ]
+  },
+  "database_info": {
+    "type": "PostgreSQL",
+    "version": "15.x",
+    "host": "localhost:5432",
+    "database": "ap_intake"
+  }
+}

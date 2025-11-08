@@ -1,0 +1,133 @@
+{
+  "session_id": "5373a2b2-bb23-4bea-affb-cf03f269f092",
+  "timestamp": "2025-11-08T11:13:48.433256",
+  "summary": {
+    "total_tests": 8,
+    "passed": 0,
+    "failed": 8,
+    "success_rate": 0.0
+  },
+  "results": [
+    {
+      "test": "Basic Connectivity Test",
+      "success": false,
+      "error": "All connection attempts failed",
+      "timestamp": "2025-11-08T11:13:47.217912"
+    },
+    {
+      "test": "Health Check Test",
+      "success": false,
+      "endpoints": [
+        {
+          "endpoint": "/health",
+          "status": "ERROR",
+          "error": "All connection attempts failed"
+        },
+        {
+          "endpoint": "/metrics",
+          "status": "ERROR",
+          "error": "All connection attempts failed"
+        },
+        {
+          "endpoint": "/api/v1/status",
+          "status": "ERROR",
+          "error": "All connection attempts failed"
+        }
+      ],
+      "timestamp": "2025-11-08T11:13:47.226746"
+    },
+    {
+      "test": "API Endpoints Test",
+      "success": false,
+      "endpoints": [
+        {
+          "endpoint": "/api/v1/invoices/",
+          "method": "GET",
+          "description": "List invoices",
+          "status": "ERROR",
+          "error": "All connection attempts failed"
+        },
+        {
+          "endpoint": "/api/v1/exports/",
+          "method": "GET",
+          "description": "List exports",
+          "status": "ERROR",
+          "error": "All connection attempts failed"
+        },
+        {
+          "endpoint": "/api/v1/analytics/",
+          "method": "GET",
+          "description": "Analytics",
+          "status": "ERROR",
+          "error": "All connection attempts failed"
+        },
+        {
+          "endpoint": "/api/v1/emails/",
+          "method": "GET",
+          "description": "Email integration",
+          "status": "ERROR",
+          "error": "All connection attempts failed"
+        }
+      ],
+      "timestamp": "2025-11-08T11:13:47.234573"
+    },
+    {
+      "test": "Invoice Upload Test",
+      "success": false,
+      "cors_status": "ERROR",
+      "upload_status": "ERROR",
+      "storage_status": "ERROR",
+      "timestamp": "2025-11-08T11:13:47.241261"
+    },
+    {
+      "test": "Processing Pipeline Test",
+      "success": false,
+      "invoices_status": "ERROR",
+      "invoice_count": 0,
+      "celery_status": "ERROR",
+      "workflow_status": "ERROR",
+      "timestamp": "2025-11-08T11:13:47.249740"
+    },
+    {
+      "test": "Data Consistency Test",
+      "success": false,
+      "data_structure_valid": false,
+      "frontend_available": true,
+      "timestamp": "2025-11-08T11:13:48.408097"
+    },
+    {
+      "test": "Error Handling Test",
+      "success": false,
+      "error_tests": [
+        {
+          "test": "404 Not Found",
+          "status": "ERROR",
+          "error": "All connection attempts failed",
+          "passed": false
+        },
+        {
+          "test": "Invalid UUID",
+          "status": "ERROR",
+          "error": "All connection attempts failed",
+          "passed": false
+        },
+        {
+          "test": "Invalid Method",
+          "status": "ERROR",
+          "error": "All connection attempts failed",
+          "passed": false
+        }
+      ],
+      "timestamp": "2025-11-08T11:13:48.422180"
+    },
+    {
+      "test": "Export Functionality Test",
+      "success": false,
+      "exports_status": "ERROR",
+      "export_count": 0,
+      "templates_status": "ERROR",
+      "analytics_status": "ERROR",
+      "timestamp": "2025-11-08T11:13:48.433203"
+    }
+  ]
+}

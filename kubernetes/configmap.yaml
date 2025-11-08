@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ap-intake-config
+  namespace: ap-intake
+data:
+  DATABASE_POOL_SIZE: "10"
+  DATABASE_MAX_OVERFLOW: "20"
+  STORAGE_TYPE: "s3"
+  AWS_REGION: "us-east-1"
+  S3_BUCKET_NAME: "ap-intake-documents"
+  DOCLING_CONFIDENCE_THRESHOLD: "0.85"
+  DOCLING_MAX_PAGES: "50"
+  DOCLING_TIMEOUT: "30"
+  LANGGRAPH_STATE_TTL: "3600"
+  LLM_PROVIDER: "openai"
+  LLM_MODEL: "gpt-3.5-turbo"
+  LLM_MAX_TOKENS: "1000"
+  LLM_TEMPERATURE: "0.1"
+  ALGORITHM: "HS256"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+  DEBUG: "false"
+  LOG_LEVEL: "INFO"
+  MAX_FILE_SIZE_MB: "25"
+  ALLOWED_FILE_TYPES: "pdf,image/jpeg,image/png"
+  WORKER_CONCURRENCY: "4"
+  WORKER_PREFETCH_MULTIPLIER: "1"
+  WORKER_TASK_SOFT_TIME_LIMIT: "300"
+  WORKER_TASK_TIME_LIMIT: "600"
+  API_HOST: "http://api-service:8000"
+  UI_HOST: "http://web-service:3000"

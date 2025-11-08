@@ -1,0 +1,35 @@
+{
+  "timestamp": "2025-11-08 11:15:35",
+  "services": {
+    "PostgreSQL": {
+      "status": "OPERATIONAL",
+      "details": "/var/run/postgresql:5432 - accepting connections",
+      "timestamp": "2025-11-08 11:15:35"
+    },
+    "Redis": {
+      "status": "OPERATIONAL",
+      "details": "PONG",
+      "timestamp": "2025-11-08 11:15:35"
+    },
+    "MinIO_API": {
+      "status": "OPERATIONAL",
+      "details": "200",
+      "timestamp": "2025-11-08 11:15:35"
+    },
+    "MinIO_Console": {
+      "status": "OPERATIONAL",
+      "details": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"/><base href=\"/\"/><meta content=\"width=dev",
+      "timestamp": "2025-11-08 11:15:36"
+    },
+    "OpenRouter_API": {
+      "status": "OPERATIONAL",
+      "details": "{\"data\":[{\"id\":\"moonshotai/kimi-linear-48b-a3b-instruct\",\"canonical_slug\":\"moonshotai/kimi-linear-48",
+      "timestamp": "2025-11-08 11:15:36"
+    },
+    "Gmail_OAuth": {
+      "status": "OPERATIONAL",
+      "details": "{\n \"issuer\": \"https://accounts.google.com\",\n \"authorization_endpoint\": \"https://accounts.google.com/",
+      "timestamp": "2025-11-08 11:15:37"
+    }
+  }
+}
