@@ -132,6 +132,16 @@ class Settings(BaseSettings):
     LANGFUSE_PUBLIC_KEY: Optional[str] = None
     LANGFUSE_HOST: str = "https://cloud.langfuse.com"
 
+    # OpenTelemetry Configuration
+    OTEL_ENABLED: bool = False
+    OTEL_SERVICE_NAME: str = "ap-intake-api"
+    OTEL_SERVICE_VERSION: str = VERSION
+    JAEGER_ENDPOINT: Optional[str] = None
+    OTEL_EXPORTER_OTLP_ENDPOINT: Optional[str] = None
+    OTEL_EXPORTER_OTLP_HEADERS: Optional[str] = None
+    OTEL_RESOURCE_ATTRIBUTES: Optional[str] = None
+    OTEL_PROPAGATORS: str = "tracecontext,baggage,b3"
+
     # Logging
     LOG_LEVEL: str = "INFO"
 
@@ -146,6 +156,25 @@ class Settings(BaseSettings):
     # UI configuration
     UI_HOST: str = "http://localhost:3000"
     API_HOST: str = "http://localhost:8000"
+
+    # n8n integration configuration
+    N8N_BASE_URL: str = "http://localhost:5678"
+    N8N_API_KEY: Optional[str] = None
+    N8N_USERNAME: Optional[str] = None
+    N8N_PASSWORD: Optional[str] = None
+    N8N_WEBHOOK_SECRET: Optional[str] = None
+    N8N_TIMEOUT: int = 30
+    N8N_MAX_RETRIES: int = 3
+    N8N_RETRY_DELAY: float = 1.0
+    N8N_ENCRYPTION_KEY: Optional[str] = None
+
+    # n8n workflow IDs
+    N8N_AP_WORKFLOW_ID: str = "ap_invoice_processing"
+    N8N_AR_WORKFLOW_ID: str = "ar_invoice_processing"
+    N8N_WORKING_CAPITAL_WORKFLOW_ID: str = "working_capital_analysis"
+    N8N_CUSTOMER_ONBOARDING_WORKFLOW_ID: str = "customer_onboarding"
+    N8N_EXCEPTION_HANDLING_WORKFLOW_ID: str = "exception_handling"
+    N8N_WEEKLY_REPORT_WORKFLOW_ID: str = "weekly_report_generation"
 
     class Config:
         env_file = ".env"

@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly AP Intake Report - {{ report.week_start.strftime('%B %d, %Y') }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .header .subtitle {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .section {
+            background: white;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            color: #495057;
+            font-size: 1.5em;
+            font-weight: 500;
+        }
+
+        .section-content {
+            padding: 25px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .metric-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+            transition: transform 0.2s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            color: #6c757d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-change {
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+
+        .metric-change.positive {
+            color: #28a745;
+        }
+
+        .metric-change.negative {
+            color: #dc3545;
+        }
+
+        .metric-change.neutral {
+            color: #6c757d;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .warning-box {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: #212529;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .success-box {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            color: #212529;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .chart-placeholder {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            color: #6c757d;
+            margin: 20px 0;
+        }
+
+        .recommendations {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .recommendations h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+
+        .recommendation-item {
+            margin-bottom: 15px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .recommendation-item:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: #856404;
+            font-weight: bold;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+            margin-top: 40px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-good {
+            background-color: #28a745;
+        }
+
+        .status-warning {
+            background-color: #ffc107;
+        }
+
+        .status-critical {
+            background-color: #dc3545;
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            body {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>📊 Weekly AP Intake Report</h1>
+        <div class="subtitle">
+            {{ report.week_start.strftime('%B %d, %Y') }} - {{ report.week_end.strftime('%B %d, %Y') }}
+            <br>
+            Generated on {{ generated_at.strftime('%B %d, %Y at %I:%M %p') }}
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    {% if report.summary %}
+    <div class="section">
+        <div class="section-header">
+            <h2>📋 Executive Summary</h2>
+        </div>
+        <div class="section-content">
+            <div class="highlight-box">
+                <h3>Key Highlights This Week</h3>
+                <p style="font-size: 1.1em; line-height: 1.6; white-space: pre-line;">{{ report.summary }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Performance Overview -->
+    <div class="section">
+        <div class="section-header">
+            <h2>⚡ Performance Overview</h2>
+        </div>
+        <div class="section-content">
+            {% if report_data.performance_overview %}
+                {% set processing_metrics = report_data.performance_overview.processing_metrics %}
+                {% set volume_metrics = report_data.performance_overview.volume_metrics %}
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">{{ volume_metrics.total_invoices or 0 }}</div>
+                        <div class="metric-label">Total Invoices</div>
+                        <div class="metric-change neutral">Processed this week</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-value">{{ "%.1f"|format(volume_metrics.success_rate or 0) }}%</div>
+                        <div class="metric-label">Success Rate</div>
+                        {% if volume_metrics.success_rate >= 95 %}
+                            <div class="metric-change positive">✓ Excellent performance</div>
+                        {% elif volume_metrics.success_rate >= 90 %}
+                            <div class="metric-change neutral">⚠ Good performance</div>
+                        {% else %}
+                            <div class="metric-change negative">⚠ Needs improvement</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-value">{{ "%.1f"|format(processing_metrics.average_processing_time_seconds or 0) }}s</div>
+                        <div class="metric-label">Avg Processing Time</div>
+                        {% if processing_metrics.average_processing_time_seconds <= 30 %}
+                            <div class="metric-change positive">✓ Within target</div>
+                        {% else %}
+                            <div class="metric-change negative">⚠ Above target</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-value">{{ "%.1f"|format(processing_metrics.auto_approval_rate_percentage or 0) }}%</div>
+                        <div class="metric-label">Auto-approval Rate</div>
+                        {% if processing_metrics.auto_approval_rate_percentage >= 75 %}
+                            <div class="metric-change positive">✓ Strong automation</div>
+                        {% else %}
+                            <div class="metric-change neutral">→ Room for improvement</div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% else %}
+                <p>Performance metrics not available for this week.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Cost Analysis -->
+    <div class="section">
+        <div class="section-header">
+            <h2>💰 Cost Analysis</h2>
+        </div>
+        <div class="section-content">
+            {% if report_data.cost_analysis and report_data.cost_analysis.weekly_costs %}
+                {% set costs = report_data.cost_analysis.weekly_costs %}
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">${{ "%.2f"|format(costs.cost_per_invoice or 0) }}</div>
+                        <div class="metric-label">Cost Per Invoice</div>
+                        {% if costs.cost_change_percentage %}
+                            {% if costs.cost_change_percentage > 0 %}
+                                <div class="metric-change negative">↑ {{ "%.1f"|format(costs.cost_change_percentage) }}% vs last week</div>
+                            {% elif costs.cost_change_percentage < 0 %}
+                                <div class="metric-change positive">↓ {{ "%.1f"|format(abs(costs.cost_change_percentage)) }}% vs last week</div>
+                            {% else %}
+                                <div class="metric-change neutral">→ Same as last week</div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-value">${{ "%.2f"|format(costs.total_processing_cost or 0) }}</div>
+                        <div class="metric-label">Total Processing Cost</div>
+                        <div class="metric-change neutral">For {{ costs.total_invoices_processed or 0 }} invoices</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-value">{{ "%.1f"|format(costs.cost_efficiency_score or 0) }}/100</div>
+                        <div class="metric-label">Efficiency Score</div>
+                        {% if costs.cost_efficiency_score >= 80 %}
+                            <div class="metric-change positive">✓ Excellent efficiency</div>
+                        {% else %}
+                            <div class="metric-change neutral">→ Can be optimized</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-value">{{ "%.0f"|format(costs.roi_percentage or 0) }}%</div>
+                        <div class="metric-label">ROI vs Manual</div>
+                        <div class="metric-change positive">✓ Cost savings achieved</div>
+                    </div>
+                </div>
+
+                {% if costs.cost_savings_vs_manual > 0 %}
+                <div class="success-box">
+                    <h3>💵 Cost Savings Achievement</h3>
+                    <p><strong>${{ "%.2f"|format(costs.cost_savings_vs_manual) }}</strong> saved compared to manual processing this week!</p>
+                </div>
+                {% endif %}
+            {% else %}
+                <p>Cost analysis not available for this week.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Exception Analysis -->
+    <div class="section">
+        <div class="section-header">
+            <h2>⚠️ Exception Analysis</h2>
+        </div>
+        <div class="section-content">
+            {% if report_data.exception_analysis and report_data.exception_analysis.exception_summary %}
+                {% set exceptions = report_data.exception_analysis.exception_summary %}
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">{{ exceptions.total_exceptions or 0 }}</div>
+                        <div class="metric-label">Total Exceptions</div>
+                        {% if exceptions.total_exceptions == 0 %}
+                            <div class="metric-change positive">✓ No exceptions!</div>
+                        {% elif exceptions.total_exceptions <= 5 %}
+                            <div class="metric-change positive">✓ Low exception count</div>
+                        {% else %}
+                            <div class="metric-change neutral">→ Review recommended</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-value">{{ "%.1f"|format(exceptions.resolution_rate_percentage or 0) }}%</div>
+                        <div class="metric-label">Resolution Rate</div>
+                        {% if exceptions.resolution_rate_percentage >= 85 %}
+                            <div class="metric-change positive">✓ Excellent resolution</div>
+                        {% elif exceptions.resolution_rate_percentage >= 70 %}
+                            <div class="metric-change neutral">→ Good resolution</div>
+                        {% else %}
+                            <div class="metric-change negative">⚠ Needs attention</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-value">{{ "%.1f"|format(exceptions.average_resolution_time_hours or 0) }}h</div>
+                        <div class="metric-label">Avg Resolution Time</div>
+                        {% if exceptions.average_resolution_time_hours <= 2 %}
+                            <div class="metric-change positive">✓ Fast resolution</div>
+                        {% else %}
+                            <div class="metric-change neutral">→ Can be improved</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-value">{{ "%.1f"|format(exceptions.business_impact_score or 0) }}/100</div>
+                        <div class="metric-label">Business Impact Score</div>
+                        {% if exceptions.business_impact_score >= 80 %}
+                            <div class="metric-change positive">✓ Low impact</div>
+                        {% else %}
+                            <div class="metric-change negative">⚠ High impact</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if exceptions.top_exception_types %}
+                <h4>Top Exception Types:</h4>
+                <ul>
+                    {% for exception_type in exceptions.top_exception_types[:5] %}
+                    <li>
+                        <strong>{{ exception_type.type }}</strong>: {{ exception_type.count }} occurrences
+                        ({{ "%.1f"|format(exception_type.percentage) }}%)
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            {% else %}
+                <p>Exception analysis not available for this week.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- SLO Analysis -->
+    <div class="section">
+        <div class="section-header">
+            <h2>🎯 SLO Analysis</h2>
+        </div>
+        <div class="section-content">
+            {% if report_data.slo_analysis and report_data.slo_analysis.slo_attainment_summary %}
+                {% set slo_summary = report_data.slo_analysis.slo_attainment_summary %}
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">{{ "%.1f"|format(slo_summary.overall_attainment_percentage or 0) }}%</div>
+                        <div class="metric-label">Overall SLO Attainment</div>
+                        {% if slo_summary.overall_attainment_percentage >= 95 %}
+                            <div class="metric-change positive">✓ Exceeding targets</div>
+                        {% elif slo_summary.overall_attainment_percentage >= 90 %}
+                            <div class="metric-change positive">✓ Meeting targets</div>
+                        {% else %}
+                            <div class="metric-change negative">⚠ Below targets</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-value">{{ slo_summary.attainment_count or 0 }}/{{ slo_summary.total_slos or 0 }}</div>
+                        <div class="metric-label">SLOs Meeting Targets</div>
+                        <div class="metric-change neutral">Service objectives</div>
+                    </div>
+
+                    {% if report_data.slo_analysis.error_budget_summary %}
+                        {% set error_budget = report_data.slo_analysis.error_budget_summary %}
+                        <div class="metric-card">
+                            <div class="metric-value">{{ "%.1f"|format(error_budget.budget_utilization_percentage or 0) }}%</div>
+                            <div class="metric-label">Error Budget Used</div>
+                            {% if error_budget.budget_utilization_percentage <= 50 %}
+                                <div class="metric-change positive">✓ Healthy usage</div>
+                            {% elif error_budget.budget_utilization_percentage <= 80 %}
+                                <div class="metric-change neutral">→ Moderate usage</div>
+                            {% else %}
+                                <div class="metric-change negative">⚠ High usage</div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                {% if report_data.slo_analysis.slo_metrics %}
+                <h4>Individual SLO Performance:</h4>
+                <div class="metrics-grid">
+                    {% for slo in report_data.slo_analysis.slo_metrics %}
+                    <div class="metric-card">
+                        <div class="metric-value">{{ "%.1f"|format(slo.attainment_percentage) }}%</div>
+                        <div class="metric-label">{{ slo.slo_name }}</div>
+                        <div class="metric-change {{ 'positive' if slo.attainment_percentage >= 90 else 'negative' if slo.attainment_percentage < 75 else 'neutral' }}">
+                            Target: {{ slo.target_value }}{{ '%' if 'accuracy' in slo.slo_name.lower() or 'rate' in slo.slo_name.lower() else '' }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            {% else %}
+                <p>SLO analysis not available for this week.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recommendations -->
+    {% if report_data.recommendations %}
+    <div class="section">
+        <div class="section-header">
+            <h2>💡 Recommendations</h2>
+        </div>
+        <div class="section-content">
+            <div class="recommendations">
+                {% for recommendation in report_data.recommendations[:5] %}
+                <div class="recommendation-item">
+                    <strong>{{ recommendation.title }}</strong>
+                    {% if recommendation.category %}
+                        <span class="status-indicator status-{{ 'good' if recommendation.priority == 'low' else 'warning' if recommendation.priority == 'medium' else 'critical' }}"></span>
+                        <em>({{ recommendation.priority }} priority)</em>
+                    {% endif %}
+                    <br>
+                    <small>{{ recommendation.description }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Forecasting -->
+    {% if report_data.forecasting and report_data.forecasting.next_week_predictions %}
+    <div class="section">
+        <div class="section-header">
+            <h2>🔮 Next Week Forecast</h2>
+        </div>
+        <div class="section-content">
+            {% set predictions = report_data.forecasting.next_week_predictions %}
+
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value">{{ predictions.invoice_volume or 'N/A' }}</div>
+                    <div class="metric-label">Expected Invoice Volume</div>
+                    <div class="metric-change neutral">Based on trends</div>
+                </div>
+
+                {% if predictions.cost_per_invoice %}
+                <div class="metric-card">
+                    <div class="metric-value">${{ "%.2f"|format(predictions.cost_per_invoice) }}</div>
+                    <div class="metric-label">Projected Cost/Invoice</div>
+                    <div class="metric-change neutral">Predicted cost</div>
+                </div>
+                {% endif %}
+
+                <div class="metric-card">
+                    <div class="metric-value">{{ "%.1f"|format(predictions.success_rate or 0) }}%</div>
+                    <div class="metric-label">Expected Success Rate</div>
+                    <div class="metric-change neutral">Performance target</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-value">{{ predictions.exceptions_count or 0 }}</div>
+                    <div class="metric-label">Expected Exceptions</div>
+                    <div class="metric-change neutral">Risk assessment</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %>
+
+    <!-- Business Insights -->
+    {% if insights and (insights.key_highlights or insights.concerns) %}
+    <div class="section">
+        <div class="section-header">
+            <h2>🎯 Business Insights</h2>
+        </div>
+        <div class="section-content">
+            {% if insights.key_highlights %}
+                <div class="success-box">
+                    <h3>✨ Key Highlights</h3>
+                    {% for highlight in insights.key_highlights %}
+                    <p>• {{ highlight }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if insights.concerns %}
+                <div class="warning-box">
+                    <h3>⚠️ Areas of Concern</h3>
+                    {% for concern in insights.concerns %}
+                    <p>• {{ concern }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Charts Section -->
+    <div class="section">
+        <div class="section-header">
+            <h2>📈 Visual Analytics</h2>
+        </div>
+        <div class="section-content">
+            <p><em>Interactive charts and detailed visualizations are available in the web dashboard.</em></p>
+
+            {% if report_data.charts_data %}
+                <div class="two-column">
+                    <div class="chart-placeholder">
+                        <h4>📊 Invoice Volume Breakdown</h4>
+                        <p>Processing statistics by category</p>
+                    </div>
+
+                    <div class="chart-placeholder">
+                        <h4>💰 Cost Distribution</h4>
+                        <p>Cost breakdown by component</p>
+                    </div>
+
+                    <div class="chart-placeholder">
+                        <h4>🎯 SLO Performance</h4>
+                        <p>Service level objective attainment</p>
+                    </div>
+
+                    <div class="chart-placeholder">
+                        <h4>📈 Weekly Trends</h4>
+                        <p>Performance trends over time</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>
+            <strong>📧 Automated Weekly Report</strong><br>
+            Generated by AP Intake & Validation System<br>
+            {{ company_name }} • {{ generated_at.strftime('%Y') }}
+        </p>
+
+        <p style="margin-top: 20px; font-size: 0.9em; color: #adb5bd;">
+            Report ID: {{ report.id }}<br>
+            Data Quality Score: {{ "%.1f"|format(report_data.metadata.data_quality_score if report_data.metadata else 95.0) }}%
+        </p>
+    </div>
+</body>
+</html>

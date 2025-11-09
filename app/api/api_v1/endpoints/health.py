@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.workers.celery_app import celery_app
+from app.services.prometheus_service import prometheus_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -72,4 +73,14 @@ async def detailed_health_check(db: Session = Depends(get_db)):
         }
         health_status["status"] = "unhealthy"
 
-    return health_status
+      return health_status
+
+
+@router.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus metrics endpoint."""
+    # Update metrics before serving
+    await prometheus_service.update_system_metrics()
+    await prometheus_service.update_from_database()
+
+    return prometheus_service.get_metrics_response()

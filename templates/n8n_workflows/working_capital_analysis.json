@@ -1,0 +1,157 @@
+{
+  "name": "Working Capital Analysis Workflow",
+  "description": "Daily analysis of working capital metrics, cash flow projections, and financial health indicators",
+  "version": "1.0.0",
+  "workflow_type": "working_capital_analysis",
+  "active": true,
+  "tags": ["finance", "working-capital", "analysis", "daily"],
+  "nodes": [
+    {
+      "id": "schedule_trigger",
+      "type": "n8n-nodes-base.cron",
+      "name": "Daily Schedule Trigger",
+      "position": {"x": 100, "y": 100},
+      "parameters": {
+        "cronExpression": "0 6 * * *",
+        "timezone": "America/New_York"
+      }
+    },
+    {
+      "id": "fetch_ap_data",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Fetch AP Data",
+      "position": {"x": 300, "y": 50},
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/analytics/ap-summary",
+        "method": "GET",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}"
+        },
+        "jsonParameters": true
+      }
+    },
+    {
+      "id": "fetch_ar_data",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Fetch AR Data",
+      "position": {"x": 300, "y": 150},
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/analytics/ar-summary",
+        "method": "GET",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}"
+        },
+        "jsonParameters": true
+      }
+    },
+    {
+      "id": "calculate_metrics",
+      "type": "n8n-nodes-base.function",
+      "name": "Calculate Working Capital Metrics",
+      "position": {"x": 500, "y": 100},
+      "parameters": {
+        "functionCode": "// Calculate working capital metrics\nconst apData = $input.all().find(item => item.node.name === 'Fetch AP Data')?.json || {};\nconst arData = $input.all().find(item => item.node.name === 'Fetch AR Data')?.json || {};\n\n// Extract key metrics\nconst totalPayables = apData.total_outstanding || 0;\nconst totalReceivables = arData.total_outstanding || 0;\nconst avgDaysPayable = apData.average_days_payable || 0;\nconst avgDaysReceivable = arData.average_days_receivable || 0;\nconst cashBalance = apData.cash_balance || 0;\n\n// Calculate working capital\nconst workingCapital = currentAssets - currentLiabilities;\nconst workingCapitalRatio = currentLiabilities > 0 ? currentAssets / currentLiabilities : 0;\n\n// Calculate cash conversion cycle\nconst cashConversionCycle = avgDaysReceivable + avgDaysInventory - avgDaysPayable;\n\n// Generate projections (simplified)\nconst projections = {\n  next_7_days: {\n    expected_receivables: arData.next_7_days_expected || 0,\n    expected_payables: apData.next_7_days_due || 0,\n    net_cash_flow: (arData.next_7_days_expected || 0) - (apData.next_7_days_due || 0)\n  },\n  next_30_days: {\n    expected_receivables: arData.next_30_days_expected || 0,\n    expected_payables: apData.next_30_days_due || 0,\n    net_cash_flow: (arData.next_30_days_expected || 0) - (apData.next_30_days_due || 0)\n  }\n};\n\n// Risk assessment\nconst riskFactors = [];\nif (workingCapitalRatio < 1.2) riskFactors.push('Low working capital ratio');\nif (avgDaysReceivable > 45) riskFactors.push('High collection period');\nif (cashConversionCycle > 60) riskFactors.push('Long cash conversion cycle');\nif (projections.next_7_days.net_cash_flow < -50000) riskFactors.push('Negative short-term cash flow');\n\nconst riskLevel = riskFactors.length === 0 ? 'low' : riskFactors.length <= 2 ? 'medium' : 'high';\n\nreturn [{\n  json: {\n    analysis_date: new Date().toISOString().split('T')[0],\n    working_capital_metrics: {\n      working_capital: workingCapital,\n      working_capital_ratio: workingCapitalRatio,\n      current_assets: currentAssets,\n      current_liabilities: currentLiabilities,\n      cash_balance: cashBalance\n    },\n    efficiency_metrics: {\n      days_receivable: avgDaysReceivable,\n      days_payable: avgDaysPayable,\n      cash_conversion_cycle: cashConversionCycle\n    },\n    projections: projections,\n    risk_assessment: {\n      level: riskLevel,\n      factors: riskFactors\n    },\n    summary: {\n      total_receivables: totalReceivables,\n      total_payables: totalPayables,\n      net_working_capital: totalReceivables - totalPayables\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "generate_report",
+      "type": "n8n-nodes-base.function",
+      "name": "Generate Analysis Report",
+      "position": {"x": 700, "y": 100},
+      "parameters": {
+        "functionCode": "// Generate formatted analysis report\nconst metrics = $input.first().json;\n\nconst report = {\n  title: 'Daily Working Capital Analysis',\n  date: metrics.analysis_date,\n  executive_summary: {\n    working_capital: `$${metrics.working_capital_metrics.working_capital.toLocaleString()}`,\n    working_capital_ratio: metrics.working_capital_metrics.working_capital_ratio.toFixed(2),\n    cash_position: `$${metrics.working_capital_metrics.cash_balance.toLocaleString()}`,\n    risk_level: metrics.risk_assessment.level.toUpperCase()\n  },\n  detailed_metrics: {\n    current_financial_position: metrics.working_capital_metrics,\n    efficiency_indicators: metrics.efficiency_metrics,\n    cash_flow_projections: metrics.projections\n  },\n  recommendations: generateRecommendations(metrics),\n  alerts: generateAlerts(metrics)\n};\n\nfunction generateRecommendations(metrics) {\n  const recommendations = [];\n  \n  if (metrics.risk_assessment.level === 'high') {\n    recommendations.push('IMMEDIATE: Review cash position and consider short-term financing options');\n  }\n  \n  if (metrics.efficiency_metrics.days_receivable > 45) {\n    recommendations.push('Implement stricter credit control and follow-up procedures');\n  }\n  \n  if (metrics.efficiency_metrics.days_payable < 30) {\n    recommendations.push('Consider optimizing payment terms with suppliers');\n  }\n  \n  if (metrics.projections.next_7_days.net_cash_flow < 0) {\n    recommendations.push('Prepare for upcoming cash outflows and review payment schedules');\n  }\n  \n  return recommendations;\n}\n\nfunction generateAlerts(metrics) {\n  const alerts = [];\n  \n  if (metrics.working_capital_metrics.working_capital_ratio < 1.0) {\n    alerts.push({\n      type: 'critical',\n      message: 'Working capital ratio below 1.0 - immediate attention required'\n    });\n  }\n  \n  if (metrics.projections.next_7_days.net_cash_flow < -100000) {\n    alerts.push({\n      type: 'warning',\n      message: 'Significant negative cash flow projected for next 7 days'\n    });\n  }\n  \n  return alerts;\n}\n\nreturn [{\n  json: {\n    ...metrics,\n    report: report,\n    generated_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "save_to_database",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Save Analysis Results",
+      "position": {"x": 900, "y": 100},
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/analytics/working-capital/save",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify($json) }}"
+      }
+    },
+    {
+      "id": "check_alerts",
+      "type": "n8n-nodes-base.if",
+      "name": "Critical Alerts?",
+      "position": {"x": 1100, "y": 100},
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "alert_condition",
+              "leftValue": "={{ $json.report.alerts.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "send_alert_email",
+      "type": "n8n-nodes-base.emailSend",
+      "name": "Send Alert Notification",
+      "position": {"x": 1300, "y": 50},
+      "parameters": {
+        "fromEmail": "finance-alerts@company.com",
+        "toEmail": "cfo@company.com,finance-team@company.com",
+        "subject": "URGENT: Working Capital Alert - {{ $json.analysis_date }}",
+        "text": "Working capital analysis for {{ $json.analysis_date }} has identified critical issues requiring immediate attention.\n\nRisk Level: {{ $json.risk_assessment.level.toUpperCase() }}\nWorking Capital Ratio: {{ $json.working_capital_metrics.working_capital_ratio.toFixed(2) }}\n\nCritical Alerts:\n{{ $json.report.alerts.map(alert => `• ${alert.type.toUpperCase()}: ${alert.message}`).join('\\n') }}\n\nRecommendations:\n{{ $json.report.recommendations.map(rec => `• ${rec}`).join('\\n') }}\n\nPlease review the full analysis in the dashboard and take appropriate action.",
+        "options": {}
+      }
+    },
+    {
+      "id": "send_daily_summary",
+      "type": "n8n-nodes-base.emailSend",
+      "name": "Send Daily Summary",
+      "position": {"x": 1300, "y": 200},
+      "parameters": {
+        "fromEmail": "finance-reports@company.com",
+        "toEmail": "finance-team@company.com",
+        "subject": "Daily Working Capital Analysis - {{ $json.analysis_date }}",
+        "text": "Daily working capital analysis completed for {{ $json.analysis_date }}.\n\nSummary:\n• Working Capital: ${{ $json.working_capital_metrics.working_capital.toLocaleString() }}\n• Working Capital Ratio: {{ $json.working_capital_metrics.working_capital_ratio.toFixed(2) }}\n• Cash Balance: ${{ $json.working_capital_metrics.cash_balance.toLocaleString() }}\n• Risk Level: {{ $json.risk_assessment.level.toUpperCase() }}\n• Cash Conversion Cycle: {{ $json.efficiency_metrics.cash_conversion_cycle }} days\n\n7-Day Projection: ${{ $json.projections.next_7_days.net_cash_flow.toLocaleString() }} net cash flow\n\nView detailed analysis: http://localhost:3000/finance/working-capital",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "schedule_trigger": {"main": [[{"node": "fetch_ap_data", "type": "main", "index": 0}, {"node": "fetch_ar_data", "type": "main", "index": 0}]]},
+    "fetch_ap_data": {"main": [[{"node": "calculate_metrics", "type": "main", "index": 0}]]},
+    "fetch_ar_data": {"main": [[{"node": "calculate_metrics", "type": "main", "index": 0}]]},
+    "calculate_metrics": {"main": [[{"node": "generate_report", "type": "main", "index": 0}]]},
+    "generate_report": {"main": [[{"node": "save_to_database", "type": "main", "index": 0}]]},
+    "save_to_database": {"main": [[{"node": "check_alerts", "type": "main", "index": 0}]]},
+    "check_alerts": {"main": [
+      [{"node": "send_alert_email", "type": "main", "index": 0}],
+      [{"node": "send_daily_summary", "type": "main", "index": 0}]
+    ]}
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "trigger": {
+    "type": "cron",
+    "parameters": {
+      "cronExpression": "0 6 * * *",
+      "timezone": "America/New_York"
+    }
+  }
+}

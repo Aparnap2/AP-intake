@@ -1,0 +1,308 @@
+name: Schema Validation and Drift Detection
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'app/schemas/**'
+      - 'app/models/schemas.py'
+      - 'app/api/schemas/invoice.py'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'app/schemas/**'
+      - 'app/models/schemas.py'
+      - 'app/api/schemas/invoice.py'
+  schedule:
+    # Run daily at 2 AM UTC to check for schema drift
+    - cron: '0 2 * * *'
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  schema-validation:
+    runs-on: ubuntu-latest
+    name: Schema Validation
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Get full history for drift detection
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install uv
+        uv sync --dev
+
+    - name: Validate JSON Schema syntax
+      run: |
+        echo "🔍 Validating JSON Schema syntax..."
+        python -m pytest tests/test_schemas.py::test_json_schema_syntax -v
+
+    - name: Validate schema definitions
+      run: |
+        echo "📋 Validating schema definitions..."
+        python -m pytest tests/test_schemas.py::test_schema_definitions -v
+
+    - name: Test schema registration
+      run: |
+        echo "📝 Testing schema registration..."
+        python -m pytest tests/test_schemas.py::test_schema_registration -v
+
+    - name: Test schema validation
+      run: |
+        echo "✅ Testing schema validation..."
+        python -m pytest tests/test_schemas.py::test_schema_validation -v
+
+    - name: Test schema compatibility
+      run: |
+        echo "🔄 Testing schema compatibility..."
+        python -m pytest tests/test_schemas.py::test_schema_compatibility -v
+
+    - name: Check for schema drift
+      run: |
+        echo "🔍 Checking for schema drift..."
+        python scripts/check_schema_drift.py
+      if: github.event_name == 'schedule' || github.event_name == 'pull_request'
+
+    - name: Generate schema documentation
+      run: |
+        echo "📚 Generating schema documentation..."
+        python scripts/generate_schema_docs.py
+
+    - name: Upload schema documentation
+      uses: actions/upload-artifact@v3
+      with:
+        name: schema-documentation
+        path: docs/schemas/
+        retention-days: 30
+
+    - name: Validate API contract compliance
+      run: |
+        echo "📄 Validating API contract compliance..."
+        python scripts/validate_api_contracts.py
+
+    - name: Run schema integration tests
+      run: |
+        echo "🔗 Running schema integration tests..."
+        python -m pytest tests/integration/test_schema_integration.py -v
+
+  schema-drift-detection:
+    runs-on: ubuntu-latest
+    name: Schema Drift Detection
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - name: Checkout PR code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Checkout base branch
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.base_ref }}
+        path: base-branch
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install uv
+        uv sync --dev
+
+    - name: Compare schemas with base branch
+      run: |
+        echo "🔍 Comparing schemas with ${{ github.base_ref }} branch..."
+        python scripts/compare_schemas.py --base-dir base-branch --current-dir .
+
+    - name: Check for breaking changes
+      run: |
+        echo "⚠️  Checking for breaking schema changes..."
+        python scripts/check_breaking_changes.py --base-dir base-branch --current-dir .
+
+    - name: Comment PR with schema changes
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+
+          // Read schema changes report
+          const reportPath = 'schema_changes_report.json';
+          if (fs.existsSync(reportPath)) {
+            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+
+            let comment = '## 🔍 Schema Changes Detected\n\n';
+
+            if (report.new_schemas.length > 0) {
+              comment += '### ✨ New Schemas\n';
+              report.new_schemas.forEach(schema => {
+                comment += `- **${schema.name}**: Version ${schema.version}\n`;
+              });
+              comment += '\n';
+            }
+
+            if (report.modified_schemas.length > 0) {
+              comment += '### 📝 Modified Schemas\n';
+              report.modified_schemas.forEach(schema => {
+                comment += `- **${schema.name}**: ${schema.old_version} → ${schema.new_version}\n`;
+                if (schema.breaking_changes.length > 0) {
+                  comment += '  - ⚠️ Breaking changes:\n';
+                  schema.breaking_changes.forEach(change => {
+                    comment += `    - ${change}\n`;
+                  });
+                }
+              });
+              comment += '\n';
+            }
+
+            if (report.deprecated_schemas.length > 0) {
+              comment += '### 🗑️  Deprecated Schemas\n';
+              report.deprecated_schemas.forEach(schema => {
+                comment += `- **${schema.name}**: Version ${schema.version}\n`;
+              });
+              comment += '\n';
+            }
+
+            if (report.compatibility_issues.length > 0) {
+              comment += '### ⚠️ Compatibility Issues\n';
+              report.compatibility_issues.forEach(issue => {
+                comment += `- ${issue}\n`;
+              });
+            }
+
+            comment += '\n> 🤖 This comment was generated by the schema validation workflow';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          }
+
+  security-scan:
+    runs-on: ubuntu-latest
+    name: Schema Security Scan
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install uv
+        uv sync --dev
+
+    - name: Run security scan on schemas
+      run: |
+        echo "🔒 Running security scan on schemas..."
+        python scripts/security_scan_schemas.py
+
+    - name: Check for sensitive data in schemas
+      run: |
+        echo "🔍 Checking for sensitive data patterns in schemas..."
+        python scripts/check_sensitive_data.py
+
+  performance-test:
+    runs-on: ubuntu-latest
+    name: Schema Performance Test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install uv
+        uv sync --dev
+
+    - name: Benchmark schema validation performance
+      run: |
+        echo "⚡ Benchmarking schema validation performance..."
+        python scripts/benchmark_schema_validation.py
+
+    - name: Generate performance report
+      run: |
+        echo "📊 Generating performance report..."
+        python scripts/generate_performance_report.py
+
+    - name: Upload performance report
+      uses: actions/upload-artifact@v3
+      with:
+        name: schema-performance-report
+        path: schema_performance_report.json
+        retention-days: 30
+
+  notify-on-failure:
+    runs-on: ubuntu-latest
+    name: Notify on Failure
+    needs: [schema-validation, schema-drift-detection, security-scan, performance-test]
+    if: failure()
+
+    steps:
+    - name: Notify team on failure
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const workflowName = context.workflow;
+          const runId = context.runId;
+          const repoName = context.repo.repo;
+          const ownerName = context.repo.owner;
+
+          const message = `
+          🚨 Schema Validation Workflow Failed
+
+          Workflow: ${workflowName}
+          Run ID: ${runId}
+          Repository: ${ownerName}/${repoName}
+          Branch: ${context.ref}
+          Commit: ${context.sha}
+
+          Please check the workflow logs and fix any schema validation issues.
+
+          Workflow URL: https://github.com/${ownerName}/${repoName}/actions/runs/${runId}
+          `;
+
+          // Create an issue if this is not a PR
+          if (context.eventName !== 'pull_request') {
+            github.rest.issues.create({
+              owner: ownerName,
+              repo: repoName,
+              title: `Schema Validation Failed - ${new Date().toISOString().split('T')[0]}`,
+              body: message,
+              labels: ['bug', 'schema', 'ci-cd']
+            });
+          }

@@ -1,0 +1,401 @@
+# SLO Configuration and Rules for AP Intake & Validation System
+# This file defines Service Level Objectives, error budget policies, and alerting rules
+
+# Global SLO Configuration
+global:
+  error_budget_policy: "5%"
+  burn_rate_alert_threshold: 2.0
+  notification_channels:
+    - email
+    - slack
+  alert_escalation:
+    warning:
+      delay: "5m"
+      channels: ["email"]
+    critical:
+      delay: "1m"
+      channels: ["email", "slack", "sms"]
+
+# SLO Definitions
+slos:
+  # Time-to-Ready Processing SLO
+  time_to_ready:
+    name: "Time-to-Ready Processing"
+    description: "Time from invoice upload to ready for approval"
+    sli_type: "time_to_ready"
+    target:
+      percentage: 95.0
+      value: 5.0
+      unit: "minutes"
+    error_budget:
+      percentage: 5.0
+      burn_rate_threshold: 2.0
+    measurement:
+      period: "daily"
+      window: "24h"
+    alerting:
+      thresholds:
+        warning: 80.0  # Alert when 80% of error budget consumed
+        critical: 95.0  # Alert when 95% of error budget consumed
+      conditions:
+        - type: "burn_rate"
+          threshold: 2.0
+          window: "1h"
+        - type: "error_budget_exhausted"
+          threshold: 100.0
+    owner: "AP Operations Team"
+    tags: ["performance", "processing", "critical"]
+
+  # Validation Pass Rate SLO
+  validation_pass_rate:
+    name: "Validation Pass Rate"
+    description: "Percentage of invoices that pass structural and math validation"
+    sli_type: "validation_pass_rate"
+    target:
+      percentage: 90.0
+      value: 90.0
+      unit: "percentage"
+    error_budget:
+      percentage: 10.0
+      burn_rate_threshold: 1.5
+    measurement:
+      period: "daily"
+      window: "24h"
+    alerting:
+      thresholds:
+        warning: 85.0
+        critical: 95.0
+      conditions:
+        - type: "consecutive_failures"
+          threshold: 5
+          window: "1h"
+        - type: "sudden_drop"
+          threshold: 15.0
+          window: "30m"
+    owner: "Data Quality Team"
+    tags: ["quality", "validation", "business_critical"]
+
+  # Duplicate Detection Recall SLO
+  duplicate_recall:
+    name: "Duplicate Detection Recall"
+    description: "Accuracy of duplicate invoice detection"
+    sli_type: "duplicate_recall"
+    target:
+      percentage: 98.0
+      value: 98.0
+      unit: "percentage"
+    error_budget:
+      percentage: 2.0
+      burn_rate_threshold: 2.0
+    measurement:
+      period: "weekly"
+      window: "7d"
+    alerting:
+      thresholds:
+        warning: 95.0
+        critical: 99.0
+      conditions:
+        - type: "false_negative_spike"
+          threshold: 5
+          window: "24h"
+    owner: "Data Engineering Team"
+    tags: ["quality", "duplicate_detection", "data_integrity"]
+
+  # Approval Latency SLO
+  approval_latency:
+    name: "Approval Latency"
+    description: "Time from ready for approval to approved"
+    sli_type: "approval_latency"
+    target:
+      percentage: 90.0
+      value: 2.0
+      unit: "hours"
+    error_budget:
+      percentage: 10.0
+      burn_rate_threshold: 1.5
+    measurement:
+      period: "daily"
+      window: "24h"
+    alerting:
+      thresholds:
+        warning: 85.0
+        critical: 95.0
+      conditions:
+        - type: "avg_latency_increase"
+          threshold: 50.0
+          window: "2h"
+        - type: "backlog_buildup"
+          threshold: 20
+          window: "1h"
+    owner: "AP Operations Team"
+    tags: ["performance", "approval", "business_impact"]
+
+  # Processing Success Rate SLO
+  processing_success_rate:
+    name: "Processing Success Rate"
+    description: "Overall success rate of invoice processing workflow"
+    sli_type: "processing_success_rate"
+    target:
+      percentage: 95.0
+      value: 95.0
+      unit: "percentage"
+    error_budget:
+      percentage: 5.0
+      burn_rate_threshold: 2.0
+    measurement:
+      period: "hourly"
+      window: "1h"
+    alerting:
+      thresholds:
+        warning: 90.0
+        critical: 95.0
+      conditions:
+        - type: "error_spike"
+          threshold: 10.0
+          window: "15m"
+        - type: "consecutive_failures"
+          threshold: 3
+          window: "30m"
+    owner: "Platform Engineering"
+    tags: ["reliability", "processing", "critical"]
+
+  # Extraction Accuracy SLO
+  extraction_accuracy:
+    name: "Extraction Accuracy"
+    description: "Average confidence score for document extraction"
+    sli_type: "extraction_accuracy"
+    target:
+      percentage: 92.0
+      value: 0.92
+      unit: "confidence"
+    error_budget:
+      percentage: 8.0
+      burn_rate_threshold: 1.5
+    measurement:
+      period: "daily"
+      window: "24h"
+    alerting:
+      thresholds:
+        warning: 88.0
+        critical: 95.0
+      conditions:
+        - type: "confidence_drop"
+          threshold: 10.0
+          window: "2h"
+        - type: "low_confidence_batch"
+          threshold: 20
+          window: "1h"
+    owner: "Data Science Team"
+    tags: ["quality", "extraction", "ml_performance"]
+
+  # Exception Resolution Time SLO
+  exception_resolution_time:
+    name: "Exception Resolution Time"
+    description: "Average time to resolve processing exceptions"
+    sli_type: "exception_resolution_time"
+    target:
+      percentage: 85.0
+      value: 4.0
+      unit: "hours"
+    error_budget:
+      percentage: 15.0
+      burn_rate_threshold: 1.5
+    measurement:
+      period: "daily"
+      window: "24h"
+    alerting:
+      thresholds:
+        warning: 80.0
+        critical: 95.0
+      conditions:
+        - type: "resolution_time_increase"
+          threshold: 100.0
+          window: "2h"
+        - type: "exception_backlog"
+          threshold: 50
+          window: "1h"
+    owner: "AP Operations Team"
+    tags: ["performance", "exceptions", "operational"]
+
+# Alert Configuration
+alerts:
+  # Global Alert Rules
+  global_rules:
+    - name: "system_health_check"
+      description: "Monitor overall system health"
+      severity: "critical"
+      condition: "system_health_score < 0.8"
+      window: "5m"
+      notification_channels: ["slack", "email", "sms"]
+
+    - name: "high_error_rate"
+      description: "Alert when overall error rate is high"
+      severity: "critical"
+      condition: "overall_error_rate > 10.0"
+      window: "10m"
+      notification_channels: ["slack", "email"]
+
+  # SLO-specific Alert Rules
+  slo_rules:
+    time_to_ready:
+      - name: "processing_bottleneck"
+        description: "Alert when processing is significantly delayed"
+        severity: "warning"
+        condition: "avg_time_to_ready > 10m"
+        window: "15m"
+
+      - name: "critical_processing_delay"
+        description: "Alert when processing is critically delayed"
+        severity: "critical"
+        condition: "avg_time_to_ready > 15m"
+        window: "5m"
+        notification_channels: ["slack", "email"]
+
+    validation_pass_rate:
+      - name: "validation_degradation"
+        description: "Alert when validation pass rate drops"
+        severity: "warning"
+        condition: "pass_rate < 85.0"
+        window: "30m"
+
+      - name: "critical_validation_failure"
+        description: "Alert when validation fails catastrophically"
+        severity: "critical"
+        condition: "pass_rate < 70.0"
+        window: "10m"
+        notification_channels: ["slack", "email", "sms"]
+
+    processing_success_rate:
+      - name: "processing_failure_spike"
+        description: "Alert when processing failures spike"
+        severity: "warning"
+        condition: "failure_rate > 10.0"
+        window: "10m"
+
+      - name: "critical_processing_outage"
+        description: "Alert when processing is failing severely"
+        severity: "critical"
+        condition: "failure_rate > 25.0"
+        window: "5m"
+        notification_channels: ["slack", "email", "sms"]
+
+# Business Impact Classification
+business_impact:
+  critical:
+    description: "Direct impact on business operations"
+    slo_types: ["time_to_ready", "processing_success_rate"]
+    escalation_policy: "immediate"
+    notification_channels: ["slack", "email", "sms"]
+
+  high:
+    description: "Significant impact on operations"
+    slo_types: ["validation_pass_rate", "approval_latency"]
+    escalation_policy: "30_minutes"
+    notification_channels: ["slack", "email"]
+
+  medium:
+    description: "Moderate impact on operations"
+    slo_types: ["extraction_accuracy", "exception_resolution_time"]
+    escalation_policy: "2_hours"
+    notification_channels: ["email"]
+
+  low:
+    description: "Minor impact on operations"
+    slo_types: ["duplicate_recall"]
+    escalation_policy: "24_hours"
+    notification_channels: ["email"]
+
+# Error Budget Management
+error_budget:
+  policies:
+    conservative:
+      description: "Conservative error budget for critical services"
+      burn_rate_threshold: 1.0
+      alert_threshold: 50.0
+      measurement_frequency: "5m"
+
+    moderate:
+      description: "Moderate error budget for important services"
+      burn_rate_threshold: 1.5
+      alert_threshold: 70.0
+      measurement_frequency: "15m"
+
+    aggressive:
+      description: "Aggressive error budget for non-critical services"
+      burn_rate_threshold: 2.0
+      alert_threshold: 85.0
+      measurement_frequency: "1h"
+
+# Notification Configuration
+notifications:
+  email:
+    enabled: true
+    smtp_server: "smtp.company.com"
+    from_address: "slo-alerts@company.com"
+    templates:
+      warning: "templates/slo_warning.html"
+      critical: "templates/slo_critical.html"
+
+  slack:
+    enabled: true
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#ap-intake-alerts"
+    templates:
+      warning: "templates/slack_warning.json"
+      critical: "templates/slack_critical.json"
+
+  sms:
+    enabled: false
+    provider: "twilio"
+    phone_numbers: ["+1234567890", "+0987654321"]
+
+# Reporting Configuration
+reporting:
+  schedules:
+    daily:
+      enabled: true
+      time: "09:00"
+      recipients: ["ap-team@company.com"]
+      include_trends: true
+      include_forecasts: false
+
+    weekly:
+      enabled: true
+      day: "monday"
+      time: "10:00"
+      recipients: ["ap-team@company.com", "management@company.com"]
+      include_trends: true
+      include_forecasts: true
+
+    monthly:
+      enabled: true
+      day: 1
+      time: "09:00"
+      recipients: ["ap-team@company.com", "management@company.com", "executives@company.com"]
+      include_trends: true
+      include_forecasts: true
+      include_recommendations: true
+
+# Data Retention
+retention:
+  measurements: "90d"
+  alerts: "1y"
+  raw_metrics: "30d"
+  aggregated_metrics: "2y"
+
+# Performance Optimization
+performance:
+  batch_processing:
+    enabled: true
+    batch_size: 1000
+    flush_interval: "5m"
+
+  caching:
+    enabled: true
+    ttl: "1h"
+    max_size: "100MB"
+
+  compression:
+    enabled: true
+    algorithm: "gzip"
+    level: 6

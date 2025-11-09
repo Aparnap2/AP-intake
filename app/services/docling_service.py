@@ -24,6 +24,7 @@ from app.models.schemas import (
     ConfidenceScores,
     ExtractionMetadata
 )
+from app.services.schema_service import schema_service
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,26 @@ class DoclingService:
                 metadata=metadata,
                 processing_notes=self._generate_processing_notes(header_data, lines_data, confidence_data)
             )
+
+            # Validate extraction result against schema
+            try:
+                is_valid, errors, metadata = schema_service.validate_invoice_extraction(
+                    extraction_result,
+                    schema_version="1.0.0",
+                    strict_mode=False
+                )
+
+                if not is_valid:
+                    logger.warning(f"Extraction result validation warnings: {errors}")
+                    # Add validation notes to processing notes
+                    if extraction_result.processing_notes is None:
+                        extraction_result.processing_notes = []
+                    extraction_result.processing_notes.extend([f"Schema validation: {error}" for error in errors])
+                else:
+                    logger.debug("Extraction result passed schema validation")
+
+            except Exception as e:
+                logger.warning(f"Schema validation failed: {e}")
 
             logger.info(f"Successfully extracted data with overall confidence: {float(confidence_model.overall):.2f}")
             return extraction_result

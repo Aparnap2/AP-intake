@@ -47,6 +47,8 @@ dependencies = [
     "pytz==2023.3",
     "email-validator>=2.2.0",
     "pandas==2.1.4",
+    "jsonschema>=4.17.0",
+    "pyyaml>=6.0",
     "sentry-sdk[fastapi]==1.40.0",
     "loguru==0.7.3",
     "langfuse==2.9.0",
@@ -69,6 +71,25 @@ dependencies = [
     "python-barcode>=0.15.1",
     "qrcode[pil]>=7.4.2",
     "playwright>=1.55.0",
+    # Observability dependencies
+    "opentelemetry-api>=1.21.0",
+    "opentelemetry-sdk>=1.21.0",
+    "opentelemetry-exporter-jaeger-thrift>=1.21.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.21.0",
+    "opentelemetry-instrumentation-fastapi>=0.42b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.42b0",
+    "opentelemetry-instrumentation-requests>=0.42b0",
+    "opentelemetry-instrumentation-asyncpg>=0.42b0",
+    "opentelemetry-propagator-b3>=1.21.0",
+    "opentelemetry-propagator-jaeger>=1.21.0",
+    # n8n integration dependencies
+    "aiohttp>=3.8.0",
+    "backoff>=2.2.1",
+    "cryptography>=41.0.0",
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "pytest-mock>=3.12.0",
+    "aioresponses>=0.7.8",
 ]
 
 [dependency-groups]
@@ -89,6 +110,7 @@ dev = [
     "faker==20.1.0",
     "psutil==5.9.6",
     "pytest-factoryboy==2.7.0",
+    "aiosqlite>=0.19.0",
 ]
 
 [tool.setuptools.packages.find]

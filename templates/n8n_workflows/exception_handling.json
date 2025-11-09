@@ -1,0 +1,185 @@
+{
+  "name": "Exception Handling Workflow",
+  "description": "Automated exception handling with escalation and notification processes",
+  "version": "1.0.0",
+  "workflow_type": "exception_handling",
+  "active": true,
+  "tags": ["exceptions", "automation", "escalation", "notifications"],
+  "nodes": [
+    {
+      "id": "webhook_trigger",
+      "type": "n8n-nodes-base.webhook",
+      "name": "Exception Webhook",
+      "position": {"x": 100, "y": 100},
+      "parameters": {
+        "path": "exception-handling",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "parse_exception",
+      "type": "n8n-nodes-base.function",
+      "name": "Parse Exception Data",
+      "position": {"x": 300, "y": 100},
+      "parameters": {
+        "functionCode": "// Parse and validate exception data\nconst exceptionData = $input.first().json;\nconst exception = exceptionData.exception_data || exceptionData;\n\n// Required field validation\nconst requiredFields = ['exception_id', 'exception_type', 'severity', 'description'];\nconst missingFields = requiredFields.filter(field => !exception[field]);\n\nif (missingFields.length > 0) {\n  return [{\n    json: {\n      status: 'error',\n      error: `Missing required fields: ${missingFields.join(', ')}`,\n      exception_id: exception.exception_id\n    }\n  }];\n}\n\n// Categorize exception\nconst exceptionCategories = {\n  'validation_error': 'data_quality',\n  'processing_error': 'system',\n  'approval_error': 'workflow',\n  'payment_error': 'financial',\n  'integration_error': 'external_system'\n};\n\nconst category = exceptionCategories[exception.exception_type] || 'other';\n\n// Determine urgency based on severity\nconst urgencyMap = {\n  'low': 1,\n  'medium': 2,\n  'high': 3,\n  'critical': 4\n};\n\nconst urgency = urgencyMap[exception.severity] || 2;\n\nreturn [{\n  json: {\n    status: 'parsed',\n    exception_id: exception.exception_id,\n    exception_type: exception.exception_type,\n    severity: exception.severity,\n    category: category,\n    urgency: urgency,\n    description: exception.description,\n    invoice_id: exception.invoice_id,\n    auto_resolution_possible: exception.auto_resolution_possible || false,\n    suggested_actions: exception.suggested_actions || [],\n    assignee: exception.assignee,\n    context_data: exception.context_data || {},\n    timestamp: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "check_auto_resolution",
+      "type": "n8n-nodes-base.if",
+      "name": "Auto-Resolution Possible?",
+      "position": {"x": 500, "y": 100},
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auto_resolution_condition",
+              "leftValue": "={{ $json.auto_resolution_possible }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "attempt_auto_resolution",
+      "type": "n8n-nodes-base.function",
+      "name": "Attempt Auto-Resolution",
+      "position": {"x": 700, "y": 50},
+      "parameters": {
+        "functionCode": "// Attempt automatic exception resolution\nconst exception = $input.first().json;\n\nlet resolutionResult = {\n  attempted: true,\n  successful: false,\n  method: '',\n  details: '',\n  timestamp: new Date().toISOString()\n};\n\n// Resolution strategies based on exception type\nswitch (exception.exception_type) {\n  case 'validation_error':\n    resolutionResult = attemptDataValidationResolution(exception);\n    break;\n  case 'processing_error':\n    resolutionResult = attemptProcessingResolution(exception);\n    break;\n  case 'approval_error':\n    resolutionResult = attemptApprovalResolution(exception);\n    break;\n  default:\n    resolutionResult.successful = false;\n    resolutionResult.details = 'No auto-resolution strategy available';\n}\n\nfunction attemptDataValidationResolution(exc) {\n  // Simulate data validation correction\n  const success = Math.random() < 0.7; // 70% success rate\n  return {\n    attempted: true,\n    successful: success,\n    method: 'data_correction',\n    details: success ? 'Automatically corrected data validation errors' : 'Could not auto-correct validation errors',\n    timestamp: new Date().toISOString()\n  };\n}\n\nfunction attemptProcessingResolution(exc) {\n  // Simulate processing retry\n  const success = Math.random() < 0.6; // 60% success rate\n  return {\n    attempted: true,\n    successful: success,\n    method: 'processing_retry',\n    details: success ? 'Successfully reprocessed the invoice' : 'Processing retry failed',\n    timestamp: new Date().toISOString()\n  };\n}\n\nfunction attemptApprovalResolution(exc) {\n  // Simulate approval routing\n  const success = Math.random() < 0.8; // 80% success rate\n  return {\n    attempted: true,\n    successful: success,\n    method: 'approval_routing',\n    details: success ? 'Routed to appropriate approver' : 'Could not determine appropriate approver',\n    timestamp: new Date().toISOString()\n  };\n}\n\nreturn [{\n  json: {\n    ...exception,\n    resolution_result: resolutionResult,\n    status: resolutionResult.successful ? 'resolved' : 'auto_resolution_failed'\n  }\n}];"
+      }
+    },
+    {
+      "id": "escalate_to_human",
+      "type": "n8n-nodes-base.function",
+      "name": "Escalate to Human",
+      "position": {"x": 700, "y": 200},
+      "parameters": {
+        "functionCode": "// Prepare exception for human escalation\nconst exception = $input.first().json;\n\n// Determine escalation level based on severity and urgency\nconst escalationLevels = {\n  1: { level: 'low', timeframe: '24 hours', notify: 'team_lead' },\n  2: { level: 'medium', timeframe: '8 hours', notify: 'manager' },\n  3: { level: 'high', timeframe: '4 hours', notify: 'senior_manager' },\n  4: { level: 'critical', timeframe: '1 hour', notify: 'director' }\n};\n\nconst escalation = escalationLevels[exception.urgency] || escalationLevels[1];\n\n// Create escalation ticket\nconst escalationTicket = {\n  ticket_id: `EXC-${exception.exception_id}`,\n  title: `${exception.severity.toUpperCase()} Exception: ${exception.exception_type}`,\n  description: exception.description,\n  exception_id: exception.exception_id,\n  invoice_id: exception.invoice_id,\n  category: exception.category,\n  severity: exception.severity,\n  urgency: exception.urgency,\n  suggested_actions: exception.suggested_actions,\n  assignee: exception.assignee || escalation.notify,\n  due_date: new Date(Date.now() + getTimeframeMs(escalation.timeframe)).toISOString(),\n  created_at: new Date().toISOString()\n};\n\nfunction getTimeframeMs(timeframe) {\n  const match = timeframe.match(/(\\d+)\\s*(hour|day)s?/i);\n  if (!match) return 24 * 60 * 60 * 1000; // Default 24 hours\n  \n  const value = parseInt(match[1]);\n  const unit = match[2].toLowerCase();\n  \n  return unit === 'hour' ? value * 60 * 60 * 1000 : value * 24 * 60 * 60 * 1000;\n}\n\nreturn [{\n  json: {\n    ...exception,\n    escalation_ticket: escalationTicket,\n    escalation: escalation,\n    status: 'escalated'\n  }\n}];"
+      }
+    },
+    {
+      "id": "update_exception_status",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Update Exception Status",
+      "position": {"x": 900, "y": 100},
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/exceptions/{{ $json.exception_id }}/status",
+        "method": "PATCH",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"status\": \"={{ $json.status }}\",\n  \"resolution_data\": \"={{ $json.resolution_result || {} }}\",\n  \"escalation_data\": \"={{ $json.escalation_ticket || {} }}\",\n  \"updated_at\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "send_notification",
+      "type": "n8n-nodes-base.if",
+      "name": "Send Notification?",
+      "position": {"x": 1100, "y": 100},
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "notification_condition",
+              "leftValue": "={{ $json.urgency }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "notify_stakeholders",
+      "type": "n8n-nodes-base.emailSend",
+      "name": "Notify Stakeholders",
+      "position": {"x": 1300, "y": 50},
+      "parameters": {
+        "fromEmail": "system-alerts@company.com",
+        "toEmail": "={{ $json.assignee ? $json.assignee + '@company.com' : 'finance-team@company.com' }}",
+        "subject": "Exception {{ $json.severity.toUpperCase() }}: {{ $json.exception_id }} requires attention",
+        "text": "Exception {{ $json.exception_id }} requires your attention.\n\nType: {{ $json.exception_type }}\nSeverity: {{ $json.severity.toUpperCase() }}\nCategory: {{ $json.category }}\nDescription: {{ $json.description }}\n\n{% if $json.resolution_result %}\nAuto-Resolution Attempted: {{ $json.resolution_result.successful ? 'SUCCESS' : 'FAILED' }}\nMethod: {{ $json.resolution_result.method }}\nDetails: {{ $json.resolution_result.details }}\n{% endif %}\n\n{% if $json.escalation_ticket %}\nEscalation Level: {{ $json.escalation.level.toUpperCase() }}\nDue Date: {{ $json.escalation_ticket.due_date }}\nTicket ID: {{ $json.escalation_ticket.ticket_id }}\n{% endif %}\n\nPlease review and take appropriate action.\n\nView details: http://localhost:3000/exceptions/{{ $json.exception_id }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "log_activity",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Log Exception Activity",
+      "position": {"x": 1300, "y": 200},
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/observability/log",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"event_type\": \"exception_handled\",\n  \"exception_id\": \"={{ $json.exception_id }}\",\n  \"severity\": \"={{ $json.severity }}\",\n  \"action_taken\": \"={{ $json.status }}\",\n  \"auto_resolution_attempted\": \"={{ !!$json.resolution_result }}\",\n  \"auto_resolution_successful\": \"={{ $json.resolution_result?.successful || false }}\",\n  \"escalated\": \"={{ !!$json.escalation_ticket }}\",\n  \"timestamp\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "success_response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Success Response",
+      "position": {"x": 1500, "y": 100},
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\",\n  \"message\": \"Exception processed successfully\",\n  \"exception_id\": \"={{ $json.exception_id }}\",\n  \"processing_status\": \"={{ $json.status }}\",\n  \"resolution_status\": \"={{ $json.resolution_result?.successful ? 'auto_resolved' : 'escalated' }}\",\n  \"processed_at\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {"main": [[{"node": "parse_exception", "type": "main", "index": 0}]]},
+    "parse_exception": {"main": [[{"node": "check_auto_resolution", "type": "main", "index": 0}]]},
+    "check_auto_resolution": {"main": [
+      [{"node": "attempt_auto_resolution", "type": "main", "index": 0}],
+      [{"node": "escalate_to_human", "type": "main", "index": 0}]
+    ]},
+    "attempt_auto_resolution": {"main": [[{"node": "update_exception_status", "type": "main", "index": 0}]]},
+    "escalate_to_human": {"main": [[{"node": "update_exception_status", "type": "main", "index": 0}]]},
+    "update_exception_status": {"main": [[{"node": "send_notification", "type": "main", "index": 0}]]},
+    "send_notification": {"main": [
+      [{"node": "notify_stakeholders", "type": "main", "index": 0}],
+      [{"node": "log_activity", "type": "main", "index": 0}]
+    ]},
+    "notify_stakeholders": {"main": [[{"node": "log_activity", "type": "main", "index": 0}]]},
+    "log_activity": {"main": [[{"node": "success_response", "type": "main", "index": 0}]]}
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "trigger": {
+    "type": "webhook",
+    "parameters": {
+      "path": "exception-handling",
+      "httpMethod": "POST"
+    }
+  }
+}

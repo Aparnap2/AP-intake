@@ -7,6 +7,7 @@ from .llm_service import LLMService
 from .validation_service import ValidationService
 from .storage_service import StorageService
 from .export_service import ExportService
+from .metrics_service import MetricsService
 
 __all__ = [
     "DoclingService",
@@ -14,4 +15,5 @@ __all__ = [
     "ValidationService",
     "StorageService",
     "ExportService",
+    "MetricsService",
 ]

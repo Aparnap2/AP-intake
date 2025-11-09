@@ -10,6 +10,12 @@ from .invoice import (
     StagedExport,
 )
 from .reference import Vendor, PurchaseOrder, GoodsReceiptNote
+from .ar_invoice import (
+    Customer,
+    ARInvoice,
+    PaymentStatus,
+    CollectionPriority,
+)
 from .storage_audit import StorageAudit, FileDeduplication, FileAccessControl
 # Temporarily commented out email models to fix SQLAlchemy relationship error
 # from .email import (
@@ -30,6 +36,14 @@ from .user import (
     UserRole,
     UserStatus,
 )
+from .metrics import (
+    SLODefinition,
+    SLIMeasurement,
+    SLOAlert,
+    InvoiceMetric,
+    SystemMetric,
+    MetricsConfiguration,
+)
 
 __all__ = [
     "Invoice",
@@ -40,6 +54,10 @@ __all__ = [
     "Vendor",
     "PurchaseOrder",
     "GoodsReceiptNote",
+    "Customer",
+    "ARInvoice",
+    "PaymentStatus",
+    "CollectionPriority",
     "StorageAudit",
     "FileDeduplication",
     "FileAccessControl",
@@ -59,4 +77,11 @@ __all__ = [
     "ApiKey",
     "UserRole",
     "UserStatus",
+    # Metrics and SLO models
+    "SLODefinition",
+    "SLIMeasurement",
+    "SLOAlert",
+    "InvoiceMetric",
+    "SystemMetric",
+    "MetricsConfiguration",
 ]

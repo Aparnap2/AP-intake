@@ -1,0 +1,68 @@
+name: "Dead Letter Queue Recovery"
+description: "Process and recover failed messages from dead letter queues"
+severity: "high"
+category: "recovery"
+triggers:
+  - "dlq_threshold_exceeded"
+  - "queue_processing_failure"
+
+max_execution_time_minutes: 45
+requires_approval: false
+
+steps:
+  - id: "analyze_dlq_contents"
+    name: "Analyze DLQ Contents"
+    description: "Examine failed messages and categorize by error type"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/celery/dlq/analyze"
+    timeout_seconds: 120
+    expected_result:
+      status: "success"
+
+  - id: "identify_recovery_candidates"
+    name: "Identify Recovery Candidates"
+    description: "Determine which messages can be auto-recovered"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/celery/dlq/recovery-candidates"
+    timeout_seconds: 180
+    dependencies: ["analyze_dlq_contents"]
+
+  - id: "test_message_retry"
+    name: "Test Message Retry"
+    description: "Test retry on a sample of failed messages"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/celery/dlq/test-retry"
+    timeout_seconds: 300
+    dependencies: ["identify_recovery_candidates"]
+
+  - id: "execute_batch_retry"
+    name: "Execute Batch Retry"
+    description: "Retry eligible messages in batches"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/celery/dlq/batch-retry"
+    timeout_seconds: 600
+    dependencies: ["test_message_retry"]
+
+  - id: "move_permanent_failures"
+    name: "Move Permanent Failures"
+    description: "Move messages that cannot be recovered to permanent storage"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/celery/dlq/archive-failures"
+    timeout_seconds: 300
+    dependencies: ["execute_batch_retry"]
+
+  - id: "update_monitoring"
+    name: "Update Monitoring Dashboards"
+    description: "Update monitoring with recovery results"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/monitoring/update-dlq-status"
+    timeout_seconds: 60
+    dependencies: ["execute_batch_retry", "move_permanent_failures"]
+
+rollback_strategy: "automatic"
+
+metadata:
+  queue_types: ["celery", "redis", "rabbitmq"]
+  batch_size: 100
+  max_retry_attempts: 3
+  permanent_failure_storage: "s3://dlq-archive/"

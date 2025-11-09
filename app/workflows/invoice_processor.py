@@ -24,6 +24,7 @@ from app.services.validation_service import ValidationService
 from app.services.storage_service import StorageService
 from app.services.exception_service import ExceptionService
 from app.services.export_service import ExportService
+from app.services.metrics_service import metrics_service
 from app.db.session import AsyncSessionLocal
 from app.models.invoice import Invoice, InvoiceExtraction, InvoiceStatus, Validation as ValidationModel
 from app.api.schemas.exception import ExceptionStatus, ExceptionResolutionRequest, ExceptionAction
@@ -1583,6 +1584,19 @@ class InvoiceProcessor:
             # Log completion
             logger.info(f"Completed enhanced invoice processing for {invoice_id}: {result['status']} "
                        f"in {total_time}ms with {len(result.get('exception_ids', []))} exceptions")
+
+            # Record metrics for SLO tracking
+            try:
+                await metrics_service.record_invoice_metric(
+                    invoice_id=invoice_id,
+                    workflow_data=result,
+                    extraction_data=result.get("extraction_result"),
+                    validation_data=result.get("validation_result")
+                )
+                logger.debug(f"Recorded metrics for invoice {invoice_id}")
+            except Exception as metrics_error:
+                logger.error(f"Failed to record metrics for invoice {invoice_id}: {metrics_error}")
+                # Don't fail the workflow if metrics recording fails
 
             return result
 

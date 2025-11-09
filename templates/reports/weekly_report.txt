@@ -1,0 +1,185 @@
+WEEKLY AP INTAKE REPORT
+{{ report.week_start.strftime('%B %d, %Y') }} - {{ report.week_end.strftime('%B %d, %Y') }}
+Generated on {{ generated_at.strftime('%B %d, %Y at %I:%M %p') }}
+{{ "=" * 70 }}
+
+
+EXECUTIVE SUMMARY
+{{ "-" * 30 }}
+
+{% if report.summary %}
+{{ report.summary }}
+{% else %}
+No executive summary available for this week.
+{% endif %}
+
+
+KEY PERFORMANCE METRICS
+{{ "-" * 30 }}
+
+{% if report_data.performance_overview %}
+{% set processing_metrics = report_data.performance_overview.processing_metrics %}
+{% set volume_metrics = report_data.performance_overview.volume_metrics %}
+
+Total Invoices Processed: {{ volume_metrics.total_invoices or 0 }}
+Success Rate: {{ "%.1f"|format(volume_metrics.success_rate or 0) }}%
+Average Processing Time: {{ "%.1f"|format(processing_metrics.average_processing_time_seconds or 0) }} seconds
+Auto-approval Rate: {{ "%.1f"|format(processing_metrics.auto_approval_rate_percentage or 0) }}%
+Extraction Accuracy: {{ "%.1f"|format(processing_metrics.extraction_accuracy_percentage or 0) }}%
+
+{% else %}
+Performance metrics not available for this week.
+{% endif %}
+
+
+COST ANALYSIS
+{{ "-" * 30 }}
+
+{% if report_data.cost_analysis and report_data.cost_analysis.weekly_costs %}
+{% set costs = report_data.cost_analysis.weekly_costs %}
+
+Cost Per Invoice: ${{ "%.2f"|format(costs.cost_per_invoice or 0) }}
+Total Processing Cost: ${{ "%.2f"|format(costs.total_processing_cost or 0) }}
+Total Invoices Processed: {{ costs.total_invoices_processed or 0 }}
+Cost Efficiency Score: {{ "%.1f"|format(costs.cost_efficiency_score or 0) }}/100
+ROI vs Manual Processing: {{ "%.0f"|format(costs.roi_percentage or 0) }}%
+
+{% if costs.cost_savings_vs_manual > 0 %}
+Cost Savings: ${{ "%.2f"|format(costs.cost_savings_vs_manual) }} compared to manual processing
+{% endif %}
+
+{% if costs.cost_change_percentage %}
+Cost Trend:
+{% if costs.cost_change_percentage > 0 %}
+  ↑ {{ "%.1f"|format(costs.cost_change_percentage) }}% increase from last week
+{% elif costs.cost_change_percentage < 0 %}
+  ↓ {{ "%.1f"|format(abs(costs.cost_change_percentage)) }}% decrease from last week
+{% else %}
+  → Same as last week
+{% endif %}
+{% endif %}
+
+{% else %}
+Cost analysis not available for this week.
+{% endif %}
+
+
+EXCEPTION ANALYSIS
+{{ "-" * 30 }}
+
+{% if report_data.exception_analysis and report_data.exception_analysis.exception_summary %}
+{% set exceptions = report_data.exception_analysis.exception_summary %}
+
+Total Exceptions: {{ exceptions.total_exceptions or 0 }}
+Resolution Rate: {{ "%.1f"|format(exceptions.resolution_rate_percentage or 0) }}%
+Average Resolution Time: {{ "%.1f"|format(exceptions.average_resolution_time_hours or 0) }} hours
+Business Impact Score: {{ "%.1f"|format(exceptions.business_impact_score or 0) }}/100
+
+{% if exceptions.top_exception_types %}
+Top Exception Types:
+{% for exception_type in exceptions.top_exception_types[:5] %}
+  • {{ exception_type.type }}: {{ exception_type.count }} occurrences ({{ "%.1f"|format(exception_type.percentage) }}%)
+{% endfor %}
+{% endif %}
+
+{% else %}
+Exception analysis not available for this week.
+{% endif %}
+
+
+SLO PERFORMANCE
+{{ "-" * 30 }}
+
+{% if report_data.slo_analysis and report_data.slo_analysis.slo_attainment_summary %}
+{% set slo_summary = report_data.slo_analysis.slo_attainment_summary %}
+
+Overall SLO Attainment: {{ "%.1f"|format(slo_summary.overall_attainment_percentage or 0) }}%
+SLOs Meeting Targets: {{ slo_summary.attainment_count or 0 }}/{{ slo_summary.total_slos or 0 }}
+
+{% if report_data.slo_analysis.error_budget_summary %}
+{% set error_budget = report_data.slo_analysis.error_budget_summary %}
+Error Budget Utilization: {{ "%.1f"|format(error_budget.budget_utilization_percentage or 0) }}%
+{% endif %}
+
+{% if report_data.slo_analysis.slo_metrics %}
+Individual SLO Performance:
+{% for slo in report_data.slo_analysis.slo_metrics %}
+  • {{ slo.slo_name }}: {{ "%.1f"|format(slo.attainment_percentage) }}% (Target: {{ slo.target_value }}{{ '%' if 'accuracy' in slo.slo_name.lower() or 'rate' in slo.slo_name.lower() else '' }})
+{% endfor %}
+{% endif %}
+
+{% else %}
+SLO analysis not available for this week.
+{% endif %}
+
+
+RECOMMENDATIONS
+{{ "-" * 30 }}
+
+{% if report_data.recommendations %}
+{% for recommendation in report_data.recommendations[:5] %}
+• {{ recommendation.title }}
+  Priority: {{ recommendation.priority }}
+  {{ recommendation.description }}
+
+{% endfor %}
+{% else %}
+No recommendations available for this week.
+{% endif %}
+
+
+NEXT WEEK FORECAST
+{{ "-" * 30 }}
+
+{% if report_data.forecasting and report_data.forecasting.next_week_predictions %}
+{% set predictions = report_data.forecasting.next_week_predictions %}
+
+Expected Invoice Volume: {{ predictions.invoice_volume or 'N/A' }}
+Expected Success Rate: {{ "%.1f"|format(predictions.success_rate or 0) }}%
+Expected Exceptions: {{ predictions.exceptions_count or 0 }}
+
+{% if predictions.cost_per_invoice %}
+Projected Cost Per Invoice: ${{ "%.2f"|format(predictions.cost_per_invoice) }}
+{% endif %}
+
+{% else %}
+Forecast data not available for this week.
+{% endif %}
+
+
+BUSINESS INSIGHTS
+{{ "-" * 30 }}
+
+{% if insights %}
+{% if insights.key_highlights %}
+Key Highlights:
+{% for highlight in insights.key_highlights %}
+• {{ highlight }}
+{% endfor %}
+
+{% endif %}
+
+{% if insights.concerns %}
+Areas of Concern:
+{% for concern in insights.concerns %}
+• {{ concern }}
+{% endfor %}
+{% endif %}
+
+{% if insights.opportunities %}
+Opportunities:
+{% for opportunity in insights.opportunities %}
+• {{ opportunity }}
+{% endfor %}
+{% endif %}
+
+{% else %}
+Business insights not available for this week.
+{% endif %}
+
+
+{{ "=" * 70 }}
+Report generated by AP Intake & Validation System
+Report ID: {{ report.id }}
+Data Quality Score: {{ "%.1f"|format(report_data.metadata.data_quality_score if report_data.metadata else 95.0) }}%
+For detailed interactive charts and analytics, please visit the web dashboard.

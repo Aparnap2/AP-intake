@@ -15,6 +15,10 @@ from app.api.api_v1.endpoints import (
     celery_monitoring,
     quickbooks,
     analytics,
+    metrics,
+    observability,
+    ar,
+    n8n_webhooks,
 )
 
 api_router = APIRouter()
@@ -30,3 +34,7 @@ api_router.include_router(exceptions.router, prefix="/exceptions", tags=["Except
 api_router.include_router(celery_monitoring.router, prefix="/celery", tags=["Celery Monitoring"])
 api_router.include_router(quickbooks.router, prefix="/quickbooks", tags=["QuickBooks Integration"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics & KPIs"])
+api_router.include_router(metrics.router, prefix="/metrics", tags=["SLOs & Metrics"])
+api_router.include_router(observability.router, prefix="/observability", tags=["Observability & Runbooks"])
+api_router.include_router(ar.router, prefix="/ar", tags=["Accounts Receivable"])
+api_router.include_router(n8n_webhooks.router, prefix="/webhook", tags=["n8n Webhooks"])

@@ -1,0 +1,135 @@
+{
+  "name": "AP Invoice Processing Workflow",
+  "description": "Automated processing of AP invoices with validation, approval, and ERP integration",
+  "version": "1.0.0",
+  "workflow_type": "ap_processing",
+  "active": true,
+  "tags": ["ap", "invoice", "processing", "automation"],
+  "nodes": [
+    {
+      "id": "webhook_trigger",
+      "type": "n8n-nodes-base.webhook",
+      "name": "AP Invoice Webhook",
+      "position": {"x": 100, "y": 100},
+      "parameters": {
+        "path": "ap-invoice",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "validate_invoice",
+      "type": "n8n-nodes-base.function",
+      "name": "Validate Invoice Data",
+      "position": {"x": 300, "y": 100},
+      "parameters": {
+        "functionCode": "// Validate incoming invoice data\nconst invoiceData = $input.first().json;\n\n// Required field validation\nconst requiredFields = ['invoice_id', 'vendor_id', 'total_amount', 'invoice_date', 'due_date'];\nconst missingFields = requiredFields.filter(field => !invoiceData[field]);\n\nif (missingFields.length > 0) {\n  return [{\n    json: {\n      status: 'error',\n      error: `Missing required fields: ${missingFields.join(', ')}`,\n      invoice_id: invoiceData.invoice_id\n    }\n  }];\n}\n\n// Amount validation\nif (invoiceData.total_amount <= 0) {\n  return [{\n    json: {\n      status: 'error',\n      error: 'Total amount must be greater than 0',\n      invoice_id: invoiceData.invoice_id\n    }\n  }];\n}\n\n// Date validation\nconst invoiceDate = new Date(invoiceData.invoice_date);\nconst dueDate = new Date(invoiceData.due_date);\n\nif (dueDate <= invoiceDate) {\n  return [{\n    json: {\n      status: 'error',\n      error: 'Due date must be after invoice date',\n      invoice_id: invoiceData.invoice_id\n    }\n  }];\n}\n\n// If all validations pass\nreturn [{\n  json: {\n    status: 'validated',\n    invoice_id: invoiceData.invoice_id,\n    validation_summary: {\n      total_amount: invoiceData.total_amount,\n      vendor_id: invoiceData.vendor_id,\n      days_until_due: Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24))\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "check_duplicate",
+      "type": "n8n-nodes-base.function",
+      "name": "Check for Duplicates",
+      "position": {"x": 500, "y": 100},
+      "parameters": {
+        "functionCode": "// Check for duplicate invoices\nconst validationData = $input.first().json;\nconst invoiceId = validationData.invoice_id;\n\n// In a real implementation, you would check against your database\n// For this example, we'll simulate the check\nconst duplicateFound = Math.random() < 0.1; // 10% chance of duplicate\n\nif (duplicateFound) {\n  return [{\n    json: {\n      status: 'duplicate_found',\n      invoice_id: invoiceId,\n      action: 'review_required',\n      message: 'Duplicate invoice detected - manual review required'\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    status: 'no_duplicate',\n    invoice_id: invoiceId,\n    action: 'continue_processing'\n  }\n}];"
+      }
+    },
+    {
+      "id": "approval_gate",
+      "type": "n8n-nodes-base.if",
+      "name": "Approval Required?",
+      "position": {"x": 700, "y": 100},
+      "parameters": {
+        "conditions": {\n          "options": {\n            "caseSensitive": true,\n            "leftValue": "",\n            "typeValidation": "strict"\n          },\n          "conditions": [\n            {\n              "id": "approval_condition",\n              "leftValue": "={{ $json.validation_summary.total_amount }}",\n              "rightValue": 5000,\n              "operator": {\n                "type": "number",\n                "operation": "gt"\n              }\n            }\n          ],\n          "combinator": "and"\n        }
+      }
+    },
+    {
+      "id": "auto_approve",
+      "type": "n8n-nodes-base.function",
+      "name": "Auto-Approve Invoice",
+      "position": {"x": 900, "y": 50},
+      "parameters": {
+        "functionCode": "// Auto-approval logic for invoices under threshold\nconst invoiceData = $input.first().json;\n\nreturn [{\n  json: {\n    status: 'auto_approved',\n    invoice_id: invoiceData.invoice_id,\n    approval_details: {\n      approved_by: 'system',\n      approved_at: new Date().toISOString(),\n      approval_reason: 'Amount below auto-approval threshold'\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "manual_approval",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Request Manual Approval",
+      "position": {"x": 900, "y": 200},
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/approvals/request",
+        "method": "POST",
+        "headers": {\n          \"Content-Type\": \"application/json\"\n        },\n        "jsonParameters": true,\n        "bodyParametersJson": "{\n  \"invoice_id\": \"={{ $json.invoice_id }}\",\n  \"amount\": \"={{ $json.validation_summary.total_amount }}\",\n  \"vendor_id\": \"={{ $json.validation_summary.vendor_id }}\",\n  \"approval_type\": \"invoice_approval\",\n  \"urgency\": \"normal\",\n  \"requester\": \"n8n_workflow\"\n}"
+      }
+    },
+    {
+      "id": "export_to_erp",
+      "type": "n8n-nodes-base.function",
+      "name": "Prepare ERP Export",
+      "position": {"x": 1100, "y": 50},
+      "parameters": {
+        "functionCode": "// Prepare data for ERP export\nconst approvedData = $input.first().json;\n\nconst erpExport = {\n  invoice_id: approvedData.invoice_id,\n  vendor_id: approvedData.validation_summary?.vendor_id || 'unknown',\n  total_amount: approvedData.validation_summary?.total_amount || 0,\n  currency: 'USD',\n  due_date: new Date().toISOString(),\n  approval_status: approvedData.status,\n  export_timestamp: new Date().toISOString(),\n  export_version: '1.0'\n};\n\nreturn [{\n  json: {\n    status: 'export_prepared',\n    invoice_id: approvedData.invoice_id,\n    erp_export_data: erpExport\n  }\n}];"
+      }
+    },
+    {
+      "id": "send_notification",
+      "type": "n8n-nodes-base.emailSend",
+      "name": "Send Notification",
+      "position": {"x": 1300, "y": 50},
+      "parameters": {
+        "fromEmail": "ap-automation@company.com",
+        "toEmail": "finance@company.com",
+        "subject": "AP Invoice Processed: {{ $json.invoice_id }}",
+        "text": "Invoice {{ $json.invoice_id }} has been processed and is ready for ERP integration.\n\nAmount: ${{ $json.erp_export_data.total_amount }}\nVendor: {{ $json.erp_export_data.vendor_id }}\nStatus: {{ $json.status }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "success_response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Success Response",
+      "position": {"x": 1500, "y": 50},
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\",\n  \"message\": \"AP invoice processed successfully\",\n  \"invoice_id\": \"={{ $json.invoice_id }}\",\n  \"processed_at\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "error_response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Error Response",
+      "position": {"x": 1100, "y": 300},
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"error\",\n  \"message\": \"Invoice processing failed\",\n  \"invoice_id\": \"={{ $json.invoice_id }}\",\n  \"error\": \"={{ $json.error || 'Unknown error' }}\",\n  \"timestamp\": \"={{ new Date().toISOString() }}\"\n}",
+        "options": {\n          \"responseCode\": 400\n        }\n      }
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {"main": [[{"node": "validate_invoice", "type": "main", "index": 0}]]},
+    "validate_invoice": {"main": [[{"node": "check_duplicate", "type": "main", "index": 0}]]},
+    "check_duplicate": {"main": [[{"node": "approval_gate", "type": "main", "index": 0}]]},
+    "approval_gate": {"main": [
+      [{"node": "auto_approve", "type": "main", "index": 0}],
+      [{"node": "manual_approval", "type": "main", "index": 0}]
+    ]},
+    "auto_approve": {"main": [[{"node": "export_to_erp", "type": "main", "index": 0}]]},
+    "export_to_erp": {"main": [[{"node": "send_notification", "type": "main", "index": 0}]]},
+    "send_notification": {"main": [[{"node": "success_response", "type": "main", "index": 0}]]},
+    "manual_approval": {"main": [[{"node": "success_response", "type": "main", "index": 0}]]},
+    "validate_invoice": {"main": [[{"node": "error_response", "type": "main", "index": 1}]]}
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "trigger": {
+    "type": "webhook",
+    "parameters": {
+      "path": "ap-invoice",
+      "httpMethod": "POST"
+    }
+  }
+}

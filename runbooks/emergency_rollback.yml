@@ -1,0 +1,66 @@
+name: "Emergency Staged Export Rollback"
+description: "Rollback all staged exports within the specified time window"
+severity: "critical"
+category: "recovery"
+triggers:
+  - "export_failure"
+  - "data_corruption"
+  - "emergency_shutdown"
+
+max_execution_time_minutes: 30
+requires_approval: true
+approval_timeout_minutes: 15
+
+steps:
+  - id: "identify_staged_exports"
+    name: "Identify Staged Exports"
+    description: "Find all staged exports within rollback window"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/exports/staged/list"
+    timeout_seconds: 60
+    expected_result:
+      status: "success"
+      exports_found: true
+    metadata:
+      rollback_window_hours: 24
+
+  - id: "validate_rollback_eligibility"
+    name: "Validate Rollback Eligibility"
+    description: "Check which exports can be safely rolled back"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/exports/validate-rollback"
+    timeout_seconds: 120
+    dependencies: ["identify_staged_exports"]
+
+  - id: "execute_rollback"
+    name: "Execute Rollback"
+    description: "Rollback staged exports and update statuses"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/exports/rollback"
+    timeout_seconds: 300
+    requires_approval: true
+    dependencies: ["validate_rollback_eligibility"]
+
+  - id: "notify_stakeholders"
+    name: "Notify Stakeholders"
+    description: "Send rollback completion notifications"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/notifications/send-rollback"
+    timeout_seconds: 60
+    dependencies: ["execute_rollback"]
+
+  - id: "log_audit_trail"
+    name: "Log Audit Trail"
+    description: "Create comprehensive audit log of rollback"
+    action_type: "api_call"
+    api_endpoint: "/api/v1/audit/create"
+    timeout_seconds: 60
+    dependencies: ["execute_rollback"]
+
+rollback_strategy: "automatic"
+
+metadata:
+  emergency: true
+  impact_scope: "all_staged_exports"
+  requires_management_approval: true
+  documentation_link: "/docs/runbooks/emergency-rollback"
