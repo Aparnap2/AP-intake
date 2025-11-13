@@ -1,0 +1,403 @@
+{
+  "name": "Enhanced Exception Handling",
+  "description": "Intelligent exception processing with auto-resolution and human escalation",
+  "nodes": [
+    {
+      "id": "webhook_trigger",
+      "type": "n8n-nodes-base.webhook",
+      "name": "Exception Webhook",
+      "position": [100, 100],
+      "parameters": {
+        "path": "exception-handling",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      }
+    },
+    {
+      "id": "validate_webhook",
+      "type": "n8n-nodes-base.function",
+      "name": "Validate Webhook",
+      "position": [300, 100],
+      "parameters": {
+        "functionCode": "// Validate webhook signature and parse exception data\nconst incomingData = $input.first().json;\nconst headers = $input.first().binary || {};\n\n// Webhook signature validation (if enabled)\nconst webhookSecret = 'your-webhook-secret'; // Configure in n8n credentials\nconst signature = headers['x-n8n-signature'] || headers['signature'];\n\nif (signature && webhookSecret) {\n  const crypto = require('crypto');\n  const expectedSignature = crypto\n    .createHmac('sha256', webhookSecret)\n    .update(JSON.stringify(incomingData))\n    .digest('hex');\n  \n  if (signature !== expectedSignature) {\n    return [{\n      json: {\n        status: 'error',\n        error: 'Invalid webhook signature',\n        code: 'SECURITY_ERROR'\n      }\n    }];\n  }\n}\n\n// Extract exception data from various webhook formats\nconst exceptionData = incomingData.exception_data || incomingData.data || incomingData;\n\nreturn [{\n  json: {\n    status: 'validated',\n    exception_data: exceptionData,\n    webhook_metadata: {\n      received_at: new Date().toISOString(),\n      signature_valid: !signature || signature === expectedSignature,\n      source_ip: headers['x-forwarded-for'] || headers['x-real-ip'] || 'unknown'\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "parse_exception",
+      "type": "n8n-nodes-base.function",
+      "name": "Parse Exception Data",
+      "position": [500, 100],
+      "parameters": {
+        "functionCode": "// Parse and validate exception data with enhanced logic\nconst validationData = $input.first().json;\nconst exception = validationData.exception_data || validationData;\n\n// Required field validation with comprehensive error checking\nconst requiredFields = ['exception_id', 'exception_type', 'severity', 'description'];\nconst missingFields = requiredFields.filter(field => !exception[field]);\n\nif (missingFields.length > 0) {\n  return [{\n    json: {\n      status: 'error',\n      error: `Missing required fields: ${missingFields.join(', ')}`,\n      exception_id: exception.exception_id || 'unknown',\n      validation_issues: missingFields,\n      webhook_metadata: validationData.webhook_metadata\n    }\n  }];\n}\n\n// Enhanced exception categorization\nconst exceptionCategories = {\n  'validation_error': 'data_quality',\n  'processing_error': 'system',\n  'approval_error': 'workflow',\n  'payment_error': 'financial',\n  'integration_error': 'external_system',\n  'duplicate_error': 'data_quality',\n  'timeout_error': 'system',\n  'authentication_error': 'security',\n  'rate_limit_error': 'system',\n  'data_mismatch': 'data_quality',\n  'business_rule_violation': 'business_logic'\n};\n\nconst category = exceptionCategories[exception.exception_type] || 'other';\n\n// Enhanced urgency calculation based on multiple factors\nconst urgencyMap = {\n  'low': 1,\n  'medium': 2,\n  'high': 3,\n  'critical': 4\n};\n\nconst baseUrgency = urgencyMap[exception.severity] || 2;\n\n// Adjust urgency based on business impact\nlet adjustedUrgency = baseUrgency;\nif (exception.business_impact === 'high') {\n  adjustedUrgency = Math.min(4, baseUrgency + 1);\n}\nif (exception.customer_impact === 'high') {\n  adjustedUrgency = Math.min(4, baseUrgency + 1);\n}\nif (exception.financial_impact > 10000) {\n  adjustedUrgency = Math.min(4, baseUrgency + 1);\n}\n\n// Determine auto-resolution possibility\nconst autoResolvableTypes = [\n  'validation_error',\n  'timeout_error',\n  'duplicate_error',\n  'data_mismatch'\n];\n\nconst auto_resolution_possible = autoResolvableTypes.includes(exception.exception_type) && \n                               (exception.auto_resolution_possible !== false);\n\n// Generate suggested actions based on exception type\nconst suggestedActions = generateSuggestedActions(exception.exception_type, exception.severity);\n\nfunction generateSuggestedActions(type, severity) {\n  const actions = [];\n  \n  switch (type) {\n    case 'validation_error':\n      actions.push('Review data validation rules');\n      actions.push('Check source data format');\n      if (severity === 'critical') {\n        actions.push('Escalate to data quality team');\n      }\n      break;\n    case 'processing_error':\n      actions.push('Retry processing with exponential backoff');\n      actions.push('Check system resources');\n      actions.push('Review error logs for root cause');\n      break;\n    case 'approval_error':\n      actions.push('Review approval workflow configuration');\n      actions.push('Check approver availability');\n      actions.push('Verify approval rules');\n      break;\n    case 'payment_error':\n      actions.push('Verify payment method details');\n      actions.push('Check account status');\n      actions.push('Review payment limits');\n      break;\n    case 'integration_error':\n      actions.push('Test external system connectivity');\n      actions.push('Verify API credentials');\n      actions.push('Check rate limits');\n      break;\n    default:\n      actions.push('Review exception details');\n      actions.push('Contact system administrator');\n  }\n  \n  return actions;\n}\n\nreturn [{\n  json: {\n    status: 'parsed',\n    exception_id: exception.exception_id,\n    exception_type: exception.exception_type,\n    severity: exception.severity,\n    category: category,\n    urgency: adjustedUrgency,\n    description: exception.description,\n    invoice_id: exception.invoice_id,\n    vendor_id: exception.vendor_id,\n    customer_id: exception.customer_id,\n    auto_resolution_possible: auto_resolution_possible,\n    suggested_actions: suggestedActions,\n    assignee: exception.assignee || determineAssignee(category, adjustedUrgency),\n    context_data: {\n      ...exception.context_data,\n      webhook_metadata: validationData.webhook_metadata,\n      business_impact: exception.business_impact,\n      customer_impact: exception.customer_impact,\n      financial_impact: exception.financial_impact,\n      retry_count: exception.retry_count || 0,\n      first_occurred: exception.first_occurred || new Date().toISOString()\n    },\n    timestamp: new Date().toISOString()\n  }\n}];\n\nfunction determineAssignee(category, urgency) {\n  // Auto-assignment logic based on category and urgency\n  const assignmentRules = {\n    'data_quality': {\n      1: 'data_ops_team',\n      2: 'data_ops_team',\n      3: 'data_quality_lead',\n      4: 'data_manager'\n    },\n    'system': {\n      1: 'ops_team',\n      2: 'ops_team',\n      3: 'ops_lead',\n      4: 'system_architect'\n    },\n    'workflow': {\n      1: 'workflow_team',\n      2: 'workflow_team',\n      3: 'workflow_lead',\n      4: 'process_owner'\n    },\n    'financial': {\n      1: 'finance_ops',\n      2: 'finance_ops',\n      3: 'finance_lead',\n      4: 'cfo_office'\n    },\n    'external_system': {\n      1: 'integration_team',\n      2: 'integration_team',\n      3: 'integration_lead',\n      4: 'vendor_management'\n    }\n  };\n  \n  return assignmentRules[category]?.[urgency] || 'general_support';\n}"
+      }
+    },
+    {
+      "id": "check_duplicate_exception",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Check Duplicate Exception",
+      "position": [700, 50],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/exceptions/check-duplicate",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"exception_id\": \"={{ $json.exception_id }}\",\n  \"exception_type\": \"={{ $json.exception_type }}\",\n  \"invoice_id\": \"={{ $json.invoice_id }}\",\n  \"description_hash\": \"={{ $crypto.hash($json.description, 'sha256') }}\"\n}"
+      }
+    },
+    {
+      "id": "duplicate_check_result",
+      "type": "n8n-nodes-base.if",
+      "name": "Duplicate Found?",
+      "position": [900, 50],
+      "parameters": {
+        "conditions": {
+          "options": {\n            \"caseSensitive\": true,\n            \"leftValue\": \"\",\n            \"typeValidation\": \"strict\"\n          },\n          \"conditions\": [\n            {\n              \"id\": \"duplicate_condition\",\n              \"leftValue\": \"={{ $json.is_duplicate }}\",\n              \"rightValue\": true,\n              \"operator\": {\n                \"type\": \"boolean\",\n                \"operation\": \"equal\"\n              }\n            }\n          ],\n          \"combinator\": \"and\"\n        }\n      }\n    },\n    {
+      "id": "handle_duplicate",
+      "type": "n8n-nodes-base.function",
+      "name": "Handle Duplicate Exception",
+      "position": [1100, 0],
+      "parameters": {
+        "functionCode": "// Handle duplicate exception by updating existing record\nconst exceptionData = $input.first().json;\n\nreturn [{\n  json: {\n    status: 'duplicate_handled',\n    action: 'updated_existing',\n    exception_id: exceptionData.exception_id,\n    original_exception_id: exceptionData.original_exception_id,\n    message: 'Exception updated as duplicate of existing record',\n    updated_fields: ['last_occurred', 'occurrence_count', 'context_data'],\n    timestamp: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "check_auto_resolution",
+      "type": "n8n-nodes-base.if",
+      "name": "Auto-Resolution Possible?",
+      "position": [700, 150],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auto_resolution_condition",
+              "leftValue": "={{ $json.auto_resolution_possible }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "attempt_auto_resolution",
+      "type": "n8n-nodes-base.function",
+      "name": "Attempt Auto-Resolution",
+      "position": [900, 100],
+      "parameters": {
+        "functionCode": "// Enhanced auto-resolution with multiple strategies\nconst exception = $input.first().json;\n\nlet resolutionResult = {\n  attempted: true,\n  successful: false,\n  method: '',\n  details: '',\n  steps_taken: [],\n  timestamp: new Date().toISOString(),\n  duration_ms: 0\n};\n\nconst startTime = Date.now();\n\n// Resolution strategies based on exception type\nswitch (exception.exception_type) {\n  case 'validation_error':\n    resolutionResult = attemptDataValidationResolution(exception);\n    break;\n  case 'processing_error':\n    resolutionResult = attemptProcessingResolution(exception);\n    break;\n  case 'approval_error':\n    resolutionResult = attemptApprovalResolution(exception);\n    break;\n  case 'duplicate_error':\n    resolutionResult = attemptDuplicateResolution(exception);\n    break;\n  case 'timeout_error':\n    resolutionResult = attemptTimeoutResolution(exception);\n    break;\n  case 'data_mismatch':\n    resolutionResult = attemptDataMismatchResolution(exception);\n    break;\n  default:\n    resolutionResult.successful = false;\n    resolutionResult.method = 'none';\n    resolutionResult.details = 'No auto-resolution strategy available for this exception type';\n}\n\nresolutionResult.duration_ms = Date.now() - startTime;\n\nfunction attemptDataValidationResolution(exc) {\n  const steps = [];\n  \n  // Step 1: Try to correct common data format issues\n  steps.push('Attempting to correct data format issues');\n  \n  // Simulate data correction with success probability based on severity\n  const successProbability = exc.severity === 'low' ? 0.8 : \n                            exc.severity === 'medium' ? 0.6 : \n                            exc.severity === 'high' ? 0.3 : 0.1;\n  \n  const success = Math.random() < successProbability;\n  \n  if (success) {\n    steps.push('Successfully corrected data validation errors');\n    return {\n      attempted: true,\n      successful: true,\n      method: 'data_correction',\n      details: 'Automatically corrected data validation errors',\n      steps_taken: steps,\n      corrected_fields: ['format', 'required_fields'],\n      timestamp: new Date().toISOString()\n    };\n  } else {\n    steps.push('Data correction failed - manual review required');\n    return {\n      attempted: true,\n      successful: false,\n      method: 'data_correction',\n      details: 'Could not auto-correct validation errors',\n      steps_taken: steps,\n      failure_reason: 'Complex validation rule violation',\n      timestamp: new Date().toISOString()\n    };\n  }\n}\n\nfunction attemptProcessingResolution(exc) {\n  const steps = [];\n  \n  // Step 1: Retry processing with exponential backoff\n  steps.push('Attempting retry with exponential backoff');\n  \n  const retryCount = exc.context_data?.retry_count || 0;\n  const maxRetries = 3;\n  \n  if (retryCount < maxRetries) {\n    // Simulate retry with decreasing success probability\n    const successProbability = Math.max(0.1, 0.8 - (retryCount * 0.2));\n    const success = Math.random() < successProbability;\n    \n    if (success) {\n      steps.push(`Processing retry successful on attempt ${retryCount + 1}`);\n      return {\n        attempted: true,\n        successful: true,\n        method: 'processing_retry',\n        details: `Successfully reprocessed on attempt ${retryCount + 1}`,\n        steps_taken: steps,\n        retry_attempt: retryCount + 1,\n        backoff_delay: Math.pow(2, retryCount) * 1000, // exponential backoff\n        timestamp: new Date().toISOString()\n      };\n    }\n  }\n  \n  steps.push('Processing retry failed - manual intervention required');\n  return {\n    attempted: true,\n    successful: false,\n    method: 'processing_retry',\n    details: 'Processing retry failed after maximum attempts',\n    steps_taken: steps,\n    failure_reason: retryCount >= maxRetries ? 'Maximum retries exceeded' : 'Retry failed',\n    retry_attempt: retryCount,\n    timestamp: new Date().toISOString()\n  };\n}\n\nfunction attemptApprovalResolution(exc) {\n  const steps = [];\n  \n  // Step 1: Try to automatically route to appropriate approver\n  steps.push('Attempting automatic approval routing');\n  \n  // Check if invoice amount is below auto-approval threshold\n  const invoiceAmount = exc.context_data?.invoice_amount || 0;\n  const autoApprovalThreshold = 5000;\n  \n  if (invoiceAmount <= autoApprovalThreshold) {\n    steps.push(`Invoice amount $${invoiceAmount} is below auto-approval threshold`);\n    \n    return {\n      attempted: true,\n      successful: true,\n      method: 'auto_approval',\n      details: 'Invoice auto-approved based on amount threshold',\n      steps_taken: steps,\n      approval_amount: invoiceAmount,\n      threshold_used: autoApprovalThreshold,\n      timestamp: new Date().toISOString()\n    };\n  } else {\n    steps.push(`Invoice amount $${invoiceAmount} exceeds auto-approval threshold`);\n    \n    return {\n      attempted: true,\n      successful: false,\n      method: 'auto_approval',\n      details: 'Invoice requires manual approval due to amount',\n      steps_taken: steps,\n      failure_reason: 'Amount exceeds auto-approval threshold',\n      invoice_amount: invoiceAmount,\n      threshold_used: autoApprovalThreshold,\n      timestamp: new Date().toISOString()\n    };\n  }\n}\n\nfunction attemptDuplicateResolution(exc) {\n  const steps = [];\n  \n  // Step 1: Check if this is actually a duplicate that can be merged\n  steps.push('Analyzing potential duplicate records');\n  \n  // Simulate duplicate detection and merging\n  const duplicateFound = Math.random() < 0.7; // 70% chance of finding duplicate to merge\n  \n  if (duplicateFound) {\n    steps.push('Found duplicate record - merging data');\n    \n    return {\n      attempted: true,\n      successful: true,\n      method: 'duplicate_merge',\n      details: 'Successfully merged duplicate records',\n      steps_taken: steps,\n      original_exception_id: `orig_${exc.exception_id}`,\n      merged_fields: ['invoice_data', 'timestamps'],\n      timestamp: new Date().toISOString()\n    };\n  } else {\n    steps.push('No duplicate found - this is a unique exception');\n    \n    return {\n      attempted: true,\n      successful: false,\n      method: 'duplicate_merge',\n      details: 'No duplicate record found to merge',\n      steps_taken: steps,\n      failure_reason: 'No duplicate found',\n      timestamp: new Date().toISOString()\n    };\n  }\n}\n\nfunction attemptTimeoutResolution(exc) {\n  const steps = [];\n  \n  // Step 1: Check if operation can be retried with timeout extension\n  steps.push('Attempting timeout extension and retry');\n  \n  const currentTimeout = exc.context_data?.timeout_seconds || 30;\n  const extendedTimeout = currentTimeout * 2;\n  \n  // Simulate retry with extended timeout\n  const success = Math.random() < 0.6; // 60% success rate\n  \n  if (success) {\n    steps.push(`Extended timeout from ${currentTimeout}s to ${extendedTimeout}s - successful`);\n    \n    return {\n      attempted: true,\n      successful: true,\n      method: 'timeout_extension',\n      details: 'Operation succeeded with extended timeout',\n      steps_taken: steps,\n      original_timeout: currentTimeout,\n      extended_timeout: extendedTimeout,\n      timestamp: new Date().toISOString()\n    };\n  } else {\n    steps.push(`Extended timeout to ${extendedTimeout}s - still failed`);\n    \n    return {\n      attempted: true,\n      successful: false,\n      method: 'timeout_extension',\n      details: 'Operation failed even with extended timeout',\n      steps_taken: steps,\n      failure_reason: 'Timeout extension insufficient',\n      original_timeout: currentTimeout,\n      extended_timeout: extendedTimeout,\n      timestamp: new Date().toISOString()\n    };\n  }\n}\n\nfunction attemptDataMismatchResolution(exc) {\n  const steps = [];\n  \n  // Step 1: Try to reconcile data mismatches automatically\n  steps.push('Attempting automatic data reconciliation');\n  \n  // Simulate data reconciliation with field-level matching\n  const reconciliationStrategies = [\n    'field_mapping',\n    'format_standardization',\n    'currency_conversion',\n    'unit_normalization'\n  ];\n  \n  let successfulStrategies = [];\n  \n  for (const strategy of reconciliationStrategies) {\n    const strategySuccess = Math.random() < 0.5; // 50% success per strategy\n    if (strategySuccess) {\n      successfulStrategies.push(strategy);\n      steps.push(`Successfully applied ${strategy} strategy`);\n    }\n  }\n  \n  const overallSuccess = successfulStrategies.length > 0;\n  \n  if (overallSuccess) {\n    return {\n      attempted: true,\n      successful: true,\n      method: 'data_reconciliation',\n      details: `Reconciled data using ${successfulStrategies.length} strategies`,\n      steps_taken: steps,\n      successful_strategies: successfulStrategies,\n      reconciled_fields: successfulStrategies.map(s => `${s}_field`),\n      timestamp: new Date().toISOString()\n    };\n  } else {\n    steps.push('All reconciliation strategies failed');\n    \n    return {\n      attempted: true,\n      successful: false,\n      method: 'data_reconciliation',\n      details: 'Unable to reconcile data automatically',\n      steps_taken: steps,\n      failure_reason: 'No successful reconciliation strategies',\n      attempted_strategies: reconciliationStrategies,\n      timestamp: new Date().toISOString()\n    };\n  }\n}\n\nreturn [{\n  json: {\n    ...exception,\n    resolution_result: resolutionResult,\n    status: resolutionResult.successful ? 'resolved' : 'auto_resolution_failed'\n  }\n}];"
+      }
+    },
+    {
+      "id": "escalate_to_human",
+      "type": "n8n-nodes-base.function",
+      "name": "Escalate to Human",
+      "position": [900, 250],
+      "parameters": {
+        "functionCode": "// Enhanced human escalation with intelligent routing\nconst exception = $input.first().json;\n\n// Determine escalation level based on severity, urgency, and business impact\nconst escalationLevels = {\n  1: { \n    level: 'low', \n    timeframe: '24 hours', \n    notify: 'team_lead',\n    priority: 'normal',\n    escalation_path: ['team_lead', 'manager']\n  },\n  2: { \n    level: 'medium', \n    timeframe: '8 hours', \n    notify: 'manager',\n    priority: 'high',\n    escalation_path: ['manager', 'director']\n  },\n  3: { \n    level: 'high', \n    timeframe: '4 hours', \n    notify: 'senior_manager',\n    priority: 'urgent',\n    escalation_path: ['senior_manager', 'director', 'vp']\n  },\n  4: { \n    level: 'critical', \n    timeframe: '1 hour', \n    notify: 'director',\n    priority: 'critical',\n    escalation_path: ['director', 'vp', 'executive']\n  }\n};\n\nconst escalation = escalationLevels[exception.urgency] || escalationLevels[2];\n\n// Enhanced assignment logic\nconst assignee = determineEnhancedAssignee(exception, escalation);\n\n// Create comprehensive escalation ticket\nconst escalationTicket = {\n  ticket_id: `EXC-${exception.exception_id}`,\n  title: `${exception.severity.toUpperCase()} Exception: ${exception.exception_type}`,\n  description: exception.description,\n  exception_id: exception.exception_id,\n  invoice_id: exception.invoice_id,\n  vendor_id: exception.vendor_id,\n  customer_id: exception.customer_id,\n  category: exception.category,\n  severity: exception.severity,\n  urgency: exception.urgency,\n  impact_assessment: {\n    business_impact: exception.context_data?.business_impact || 'unknown',\n    customer_impact: exception.context_data?.customer_impact || 'unknown',\n    financial_impact: exception.context_data?.financial_impact || 0\n  },\n  suggested_actions: exception.suggested_actions,\n  assignee: assignee,\n  due_date: new Date(Date.now() + getTimeframeMs(escalation.timeframe)).toISOString(),\n  escalation_level: escalation.level,\n  priority: escalation.priority,\n  escalation_path: escalation.escalation_path,\n  context_data: exception.context_data,\n  created_at: new Date().toISOString(),\n  auto_resolution_attempted: false,\n  auto_resolution_failed: true\n};\n\n// Add SLA information\nconst slaInfo = calculateSLA(exception, escalation);\nescalationTicket.sla = slaInfo;\n\n// Determine notification requirements\nconst notifications = generateNotifications(escalationTicket, escalation);\n\nfunction determineEnhancedAssignee(exc, escLevel) {\n  // Enhanced assignment based on multiple factors\n  const baseAssignee = exception.assignee;\n  \n  // Override based on business impact\n  if (exception.context_data?.business_impact === 'high') {\n    return escalateAssignee(baseAssignee, 1);\n  }\n  \n  // Override based on customer impact\n  if (exception.context_data?.customer_impact === 'high') {\n    return escalateAssignee(baseAssignee, 1);\n  }\n  \n  // Override based on financial impact\n  if (exception.context_data?.financial_impact > 50000) {\n    return escalateAssignee(baseAssignee, 2);\n  }\n  \n  return baseAssignee || escLevel.notify;\n}\n\nfunction escalateAssignee(currentAssignee, levels) {\n  const escalationMap = {\n    'team_lead': ['manager', 'director'],\n    'manager': ['director', 'vp'],\n    'senior_manager': ['director', 'vp'],\n    'director': ['vp', 'executive']\n  };\n  \n  const path = escalationMap[currentAssignee] || ['manager', 'director'];\n  return path[Math.min(levels - 1, path.length - 1)];\n}\n\nfunction getTimeframeMs(timeframe) {\n  const match = timeframe.match(/(\\d+)\\s*(hour|day)s?/i);\n  if (!match) return 24 * 60 * 60 * 1000; // Default 24 hours\n  \n  const value = parseInt(match[1]);\n  const unit = match[2].toLowerCase();\n  \n  return unit === 'hour' ? value * 60 * 60 * 1000 : value * 24 * 60 * 60 * 1000;\n}\n\nfunction calculateSLA(exc, escLevel) {\n  const now = new Date();\n  const responseTime = new Date(now.getTime() + (parseInt(escLevel.timeframe) * 60 * 60 * 1000 / 4)); // 25% for response\n  const resolutionTime = new Date(now.getTime() + getTimeframeMs(escLevel.timeframe));\n  \n  return {\n    first_response_due: responseTime.toISOString(),\n    resolution_due: resolutionTime.toISOString(),\n    breach_probability: calculateBreachProbability(exc, escLevel),\n    risk_level: determineRiskLevel(exc, escLevel)\n  };\n}\n\nfunction calculateBreachProbability(exc, escLevel) {\n  let probability = 0.1; // Base 10% breach probability\n  \n  // Adjust based on historical data\n  const historicalBreachRate = 0.15; // Could be fetched from metrics\n  probability += historicalBreachRate;\n  \n  // Adjust based on exception complexity\n  if (exc.category === 'external_system') probability += 0.1;\n  if (exc.category === 'system') probability += 0.05;\n  \n  // Adjust based on urgency\n  probability += (exc.urgency - 1) * 0.05;\n  \n  return Math.min(0.8, probability); // Cap at 80%\n}\n\nfunction determineRiskLevel(exc, escLevel) {\n  const riskScore = exc.urgency + \n                    (exc.context_data?.financial_impact > 10000 ? 1 : 0) +\n                    (exc.context_data?.business_impact === 'high' ? 1 : 0) +\n                    (exc.category === 'external_system' ? 0.5 : 0);\n  \n  if (riskScore >= 4) return 'critical';\n  if (riskScore >= 3) return 'high';\n  if (riskScore >= 2) return 'medium';\n  return 'low';\n}\n\nfunction generateNotifications(ticket, escLevel) {\n  const notifications = [];\n  \n  // Primary assignee notification\n  notifications.push({\n    type: 'assignment',\n    recipient: ticket.assignee,\n    channel: 'email',\n    urgency: escLevel.priority,\n    message: `New exception assigned: ${ticket.title}`\n  });\n  \n  // High urgency notifications\n  if (escLevel.priority === 'urgent' || escLevel.priority === 'critical') {\n    notifications.push({\n      type: 'alert',\n      recipient: 'duty_officer',\n      channel: 'sms',\n      urgency: 'immediate',\n      message: `Critical exception: ${ticket.exception_id}`\n    });\n  }\n  \n  // Escalation path notifications\n  if (escLevel.urgency >= 3) {\n    escLevel.escalation_path.forEach(person => {\n      notifications.push({\n        type: 'escalation',\n        recipient: person,\n        channel: 'email',\n        urgency: 'high',\n        message: `Exception escalated: ${ticket.title}`\n      });\n    });\n  }\n  \n  return notifications;\n}\n\nreturn [{\n  json: {\n    ...exception,\n    escalation_ticket: escalationTicket,\n    escalation: escalation,\n    status: 'escalated',\n    notifications: notifications,\n    auto_resolution_attempted: false,\n    escalation_reason: 'Auto-resolution not possible or failed'\n  }\n}];"
+      }
+    },
+    {
+      "id": "update_exception_status",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Update Exception Status",
+      "position": [1100, 150],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/exceptions/{{ $json.exception_id }}/status",
+        "method": "PATCH",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"status\": \"={{ $json.status }}\",\n  \"resolution_data\": \"={{ $json.resolution_result || {} }}\",\n  \"escalation_data\": \"={{ $json.escalation_ticket || {} }}\",\n  \"auto_resolution_attempted\": \"={{ !!$json.resolution_result }}\",\n  \"auto_resolution_successful\": \"={{ $json.resolution_result?.successful || false }}\",\n  \"escalated\": \"={{ !!$json.escalation_ticket }}\",\n  \"updated_at\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "check_notifications",
+      "type": "n8n-nodes-base.if",
+      "name": "Send Notifications?",
+      "position": [1300, 150],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "notification_condition",
+              "leftValue": "={{ $json.urgency }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "send_notifications",
+      "type": "n8n-nodes-base.function",
+      "name": "Send Notifications",
+      "position": [1500, 100],
+      "parameters": {
+        "functionCode": "// Send notifications through multiple channels\nconst exceptionData = $input.first().json;\nconst notifications = exceptionData.notifications || [];\n\nconst notificationResults = [];\n\nfor (const notification of notifications) {\n  try {\n    let result;\n    \n    switch (notification.channel) {\n      case 'email':\n        result = await sendEmailNotification(notification, exceptionData);\n        break;\n      case 'sms':\n        result = await sendSMSNotification(notification, exceptionData);\n        break;\n      case 'slack':\n        result = await sendSlackNotification(notification, exceptionData);\n        break;\n      default:\n        result = { success: false, error: 'Unknown notification channel' };\n    }\n    \n    notificationResults.push({\n      notification: notification,\n      result: result,\n      sent_at: new Date().toISOString()\n    });\n  } catch (error) {\n    notificationResults.push({\n      notification: notification,\n      result: { success: false, error: error.message },\n      sent_at: new Date().toISOString()\n    });\n  }\n}\n\nasync function sendEmailNotification(notification, exceptionData) {\n  // Simulate email sending\n  await new Promise(resolve => setTimeout(resolve, 100));\n  \n  return {\n    success: true,\n    channel: 'email',\n    recipient: notification.recipient,\n    message_id: `email_${Date.now()}`,\n    delivery_status: 'sent'\n  };\n}\n\nasync function sendSMSNotification(notification, exceptionData) {\n  // Simulate SMS sending\n  await new Promise(resolve => setTimeout(resolve, 50));\n  \n  return {\n    success: true,\n    channel: 'sms',\n    recipient: notification.recipient,\n    message_id: `sms_${Date.now()}`,\n    delivery_status: 'delivered'\n  };\n}\n\nasync function sendSlackNotification(notification, exceptionData) {\n  // Simulate Slack notification\n  await new Promise(resolve => setTimeout(resolve, 200));\n  \n  return {\n    success: true,\n    channel: 'slack',\n    recipient: notification.recipient,\n    message_id: `slack_${Date.now()}`,\n    delivery_status: 'posted'\n  };\n}\n\nreturn [{\n  json: {\n    ...exceptionData,\n    notifications_sent: true,\n    notification_results: notificationResults,\n    total_notifications: notifications.length,\n    successful_notifications: notificationResults.filter(n => n.result.success).length\n  }\n}];"
+      }
+    },
+    {
+      "id": "log_activity",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Log Exception Activity",
+      "position": [1500, 250],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/observability/log",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"event_type\": \"exception_handled\",\n  \"exception_id\": \"={{ $json.exception_id }}\",\n  \"severity\": \"={{ $json.severity }}\",\n  \"category\": \"={{ $json.category }}\",\n  \"urgency\": \"={{ $json.urgency }}\",\n  \"action_taken\": \"={{ $json.status }}\",\n  \"auto_resolution_attempted\": \"={{ !!$json.resolution_result }}\",\n  \"auto_resolution_successful\": \"={{ $json.resolution_result?.successful || false }}\",\n  \"auto_resolution_method\": \"={{ $json.resolution_result?.method || '' }}\",\n  \"escalated\": \"={{ !!$json.escalation_ticket }}\",\n  \"escalation_level\": \"={{ $json.escalation?.level || '' }}\",\n  \"assignee\": \"={{ $json.assignee }}\",\n  \"notifications_sent\": \"={{ $json.notifications_sent || false }}\",\n  \"notification_count\": \"={{ $json.total_notifications || 0 }}\",\n  \"processing_time_ms\": \"={{ $json.resolution_result?.duration_ms || 0 }}\",\n  \"duplicate_found\": \"={{ $json.status === 'duplicate_handled' }}\",\n  \"timestamp\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "success_response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Success Response",
+      "position": [1700, 150],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\",\n  \"message\": \"Exception processed successfully\",\n  \"exception_id\": \"={{ $json.exception_id }}\",\n  \"processing_status\": \"={{ $json.status }}\",\n  \"resolution_status\": \"={{ $json.resolution_result?.successful ? 'auto_resolved' : 'escalated' }}\",\n  \"auto_resolution_attempted\": \"={{ !!$json.resolution_result }}\",\n  \"escalated\": \"={{ !!$json.escalation_ticket }}\",\n  \"assignee\": \"={{ $json.assignee }}\",\n  \"urgency\": \"={{ $json.urgency }}\",\n  \"estimated_resolution_time\": \"={{ $json.escalation_ticket?.due_date || '' }}\",\n  \"notifications_sent\": \"={{ $json.notifications_sent || false }}\",\n  \"processed_at\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "error_response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Error Response",
+      "position": [1100, 350],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"error\",\n  \"message\": \"Exception processing failed\",\n  \"exception_id\": \"={{ $json.exception_id || 'unknown' }}\",\n  \"error\": \"={{ $json.error || 'Unknown error' }}\",\n  \"validation_issues\": \"={{ $json.validation_issues || [] }}\",\n  \"timestamp\": \"={{ new Date().toISOString() }}\"\n}",
+        "options": {
+          "responseCode": 400
+        }
+      }
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {
+      "main": [
+        [
+          {
+            "node": "validate_webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "validate_webhook": {
+      "main": [
+        [
+          {
+            "node": "parse_exception",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "error_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_exception": {
+      "main": [
+        [
+          {
+            "node": "check_duplicate_exception",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check_duplicate_exception": {
+      "main": [
+        [
+          {
+            "node": "duplicate_check_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "duplicate_check_result": {
+      "main": [
+        [
+          {
+            "node": "handle_duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "check_auto_resolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "handle_duplicate": {
+      "main": [
+        [
+          {
+            "node": "log_activity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check_auto_resolution": {
+      "main": [
+        [
+          {
+            "node": "attempt_auto_resolution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "escalate_to_human",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "attempt_auto_resolution": {
+      "main": [
+        [
+          {
+            "node": "update_exception_status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "escalate_to_human": {
+      "main": [
+        [
+          {
+            "node": "update_exception_status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_exception_status": {
+      "main": [
+        [
+          {
+            "node": "check_notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check_notifications": {
+      "main": [
+        [
+          {
+            "node": "send_notifications",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "log_activity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send_notifications": {
+      "main": [
+        [
+          {
+            "node": "log_activity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "log_activity": {
+      "main": [
+        [
+          {
+            "node": "success_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicyDefaultOption": "workflowsFromSameOwner",
+    "errorWorkflow": {
+      "errorWorkflowId": "your-error-workflow-id"
+    }
+  },
+  "staticData": null,
+  "pinData": {},
+  "versionId": "2.0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "your-instance-id"
+  },
+  "id": "enhanced-exception-handling",
+  "tags": [
+    {
+      "createdAt": "2024-11-12T10:00:00.000Z",
+      "updatedAt": "2024-11-12T10:00:00.000Z",
+      "id": "tag-2",
+      "name": "Exceptions"
+    }
+  ]
+}

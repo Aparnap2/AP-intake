@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, EmailStr, validator, root_validator
+from pydantic import BaseModel, Field, EmailStr, field_validator, model_validator, ConfigDict
 
 
 class CustomerBase(BaseModel):
@@ -19,7 +19,7 @@ class CustomerBase(BaseModel):
     email: Optional[EmailStr] = Field(None, description="Customer email address")
     phone: Optional[str] = Field(None, max_length=50, description="Customer phone number")
     address: Optional[str] = Field(None, description="Customer address")
-    currency: str = Field("USD", regex=r"^[A-Z]{3}$", description="Customer currency")
+    currency: str = Field("USD", pattern=r"^[A-Z]{3}$", description="Customer currency")
     credit_limit: Optional[Decimal] = Field(0, ge=0, description="Credit limit")
     payment_terms_days: int = Field(30, ge=0, le=365, description="Payment terms in days")
     active: bool = Field(True, description="Whether customer is active")
@@ -37,7 +37,7 @@ class CustomerUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=50)
     address: Optional[str] = None
-    currency: Optional[str] = Field(None, regex=r"^[A-Z]{3}$")
+    currency: Optional[str] = Field(None, pattern=r"^[A-Z]{3}$")
     credit_limit: Optional[Decimal] = Field(None, ge=0)
     payment_terms_days: Optional[int] = Field(None, ge=0, le=365)
     active: Optional[bool] = None
@@ -52,8 +52,7 @@ class CustomerResponse(CustomerBase):
     available_credit: Decimal = Field(0, description="Available credit")
     invoice_count: int = Field(0, description="Total number of invoices")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PaymentStatus(str):
@@ -79,7 +78,7 @@ class ARInvoiceBase(BaseModel):
     invoice_number: str = Field(..., min_length=1, max_length=100, description="Invoice number")
     invoice_date: datetime = Field(..., description="Invoice date")
     due_date: datetime = Field(..., description="Due date")
-    currency: str = Field("USD", regex=r"^[A-Z]{3}$", description="Invoice currency")
+    currency: str = Field("USD", pattern=r"^[A-Z]{3}$", description="Invoice currency")
     subtotal: Decimal = Field(..., ge=0, description="Invoice subtotal")
     tax_amount: Decimal = Field(..., ge=0, description="Tax amount")
     total_amount: Decimal = Field(..., gt=0, description="Total amount")
@@ -89,13 +88,16 @@ class ARInvoiceBase(BaseModel):
     working_capital_impact: Optional[Decimal] = Field(None, ge=0, description="Working capital impact")
     collection_notes: Optional[str] = Field(None, description="Collection notes")
 
-    @validator('due_date')
-    def due_date_must_be_after_invoice_date(cls, v, values):
+    @field_validator('due_date')
+    @classmethod
+    def due_date_must_be_after_invoice_date(cls, v, info):
+        values = info.data if hasattr(info, 'data') else {}
         if 'invoice_date' in values and v <= values['invoice_date']:
             raise ValueError('Due date must be after invoice date')
         return v
 
-    @root_validator
+    @model_validator(mode='before')
+    @classmethod
     def validate_amounts(cls, values):
         """Validate that total equals subtotal + tax."""
         if all(k in values for k in ['subtotal', 'tax_amount', 'total_amount']):
@@ -105,8 +107,10 @@ class ARInvoiceBase(BaseModel):
                 raise ValueError(f'Total amount must equal subtotal + tax amount ({expected_total})')
         return values
 
-    @validator('early_payment_discount_days')
-    def validate_discount_period(cls, v, values):
+    @field_validator('early_payment_discount_days')
+    @classmethod
+    def validate_discount_period(cls, v, info):
+        values = info.data if hasattr(info, 'data') else {}
         if v is not None and 'due_date' in values and 'invoice_date' in values:
             discount_deadline = values['invoice_date'] + timedelta(days=v)
             if discount_deadline > values['due_date']:
@@ -148,8 +152,7 @@ class ARInvoiceResponse(ARInvoiceBase):
     early_payment_discount_available: bool = Field(False, description="Whether early payment discount is available")
     early_payment_discount_amount: Optional[Decimal] = Field(None, description="Early payment discount amount")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PaymentApply(BaseModel):

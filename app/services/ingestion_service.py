@@ -248,8 +248,8 @@ class IngestionService:
         duplicate_id: str,
         resolution: DuplicateResolution,
         resolved_by: str,
-        resolution_notes: Optional[str] = None,
         db: AsyncSession,
+        resolution_notes: Optional[str] = None,
     ) -> bool:
         """Resolve a duplicate record with specified action."""
         try:
@@ -287,8 +287,8 @@ class IngestionService:
         self,
         start_date: datetime,
         end_date: datetime,
-        vendor_id: Optional[str] = None,
         db: AsyncSession,
+        vendor_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get ingestion metrics for the specified date range."""
         try:

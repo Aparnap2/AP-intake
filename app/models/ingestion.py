@@ -50,6 +50,7 @@ class DeduplicationStrategy(str, enum.Enum):
     TEMPORAL = "temporal"  # time window detection
     FUZZY_MATCHING = "fuzzy_matching"  # content similarity
     COMPOSITE = "composite"  # multiple strategies combined
+    WORKING_CAPITAL = "working_capital"  # working capital-aware detection
 
 
 class DuplicateResolution(str, enum.Enum):
@@ -143,6 +144,7 @@ class IngestionJob(Base, UUIDMixin, TimestampMixin):
     vendor = relationship("Vendor", back_populates="ingestion_jobs")
     duplicate_records = relationship("DuplicateRecord", back_populates="ingestion_job")
     signed_urls = relationship("SignedUrl", back_populates="ingestion_job")
+    idempotency_records = relationship("IdempotencyRecord", back_populates="ingestion_job")
 
     def __repr__(self):
         return f"<IngestionJob(id={self.id}, filename={self.original_filename}, status={self.status})>"

@@ -1,0 +1,275 @@
+[
+  {
+    "test": "Main Heading Display",
+    "status": "PASS",
+    "details": "Heading: AP Intake Review",
+    "issues": [],
+    "timestamp": 1762755639.1039953
+  },
+  {
+    "test": "Document Info Display",
+    "status": "PASS",
+    "details": "Document: Invoice_Acme_Corp_2024.pdf",
+    "issues": [],
+    "timestamp": 1762755639.115513
+  },
+  {
+    "test": "Status Display",
+    "status": "PASS",
+    "details": "Processing status shown",
+    "issues": [],
+    "timestamp": 1762755639.1210732
+  },
+  {
+    "test": "Validation Alerts",
+    "status": "PASS",
+    "details": "Alerts displayed: Validation Alerts (2)\nvendorId:\nVendor ID not foun...",
+    "issues": [],
+    "timestamp": 1762755639.1308692
+  },
+  {
+    "test": "Tab Navigation - Summary",
+    "status": "PASS",
+    "details": "Tab activated",
+    "issues": [],
+    "timestamp": 1762755639.538804
+  },
+  {
+    "test": "Tab Navigation - Detailed Fields",
+    "status": "PASS",
+    "details": "Tab activated",
+    "issues": [],
+    "timestamp": 1762755641.958616
+  },
+  {
+    "test": "Tab Navigation - Line Items",
+    "status": "PASS",
+    "details": "Tab activated",
+    "issues": [],
+    "timestamp": 1762755644.3510797
+  },
+  {
+    "test": "Invoice Number Display",
+    "status": "FAIL",
+    "details": "Invoice section not found",
+    "issues": [],
+    "timestamp": 1762755644.6220994
+  },
+  {
+    "test": "Vendor Information",
+    "status": "FAIL",
+    "details": "Vendor section not found",
+    "issues": [],
+    "timestamp": 1762755644.623591
+  },
+  {
+    "test": "Action Button - Reject & Request Reupload",
+    "status": "PASS",
+    "details": "Button is enabled",
+    "issues": [],
+    "timestamp": 1762755644.6308246
+  },
+  {
+    "test": "Button Hover - Reject & Request Reupload",
+    "status": "PASS",
+    "details": "Hover effect applied",
+    "issues": [],
+    "timestamp": 1762755646.1714463
+  },
+  {
+    "test": "Action Button - Request Manual Review",
+    "status": "PASS",
+    "details": "Button is enabled",
+    "issues": [],
+    "timestamp": 1762755646.1848354
+  },
+  {
+    "test": "Button Hover - Request Manual Review",
+    "status": "PASS",
+    "details": "Hover effect applied",
+    "issues": [],
+    "timestamp": 1762755647.7210066
+  },
+  {
+    "test": "Action Button - Approve & Process",
+    "status": "PASS",
+    "details": "Button is enabled",
+    "issues": [],
+    "timestamp": 1762755647.7342906
+  },
+  {
+    "test": "Button Hover - Approve & Process",
+    "status": "PASS",
+    "details": "Hover effect applied",
+    "issues": [],
+    "timestamp": 1762755649.2865682
+  },
+  {
+    "test": "Extraction Quality",
+    "status": "FAIL",
+    "details": "Quality section not found",
+    "issues": [],
+    "timestamp": 1762755649.290348
+  },
+  {
+    "test": "Dashboard Navigation",
+    "status": "PASS",
+    "details": "Navigated to: http://localhost:3000/invoices",
+    "issues": [],
+    "timestamp": 1762755652.4687982
+  },
+  {
+    "test": "Dashboard Tab - Dashboard",
+    "status": "PASS",
+    "details": "Tab is enabled",
+    "issues": [],
+    "timestamp": 1762755652.8118129
+  },
+  {
+    "test": "Dashboard Tab Click - Dashboard",
+    "status": "PASS",
+    "details": "Successfully clicked Dashboard tab",
+    "issues": [],
+    "timestamp": 1762755654.9036717
+  },
+  {
+    "test": "Dashboard Tab - Review",
+    "status": "PASS",
+    "details": "Tab is enabled",
+    "issues": [],
+    "timestamp": 1762755655.243995
+  },
+  {
+    "test": "Dashboard Tab Click - Review",
+    "status": "PASS",
+    "details": "Successfully clicked Review tab",
+    "issues": [],
+    "timestamp": 1762755657.3742042
+  },
+  {
+    "test": "Dashboard Tab - Exceptions",
+    "status": "PASS",
+    "details": "Tab is enabled",
+    "issues": [],
+    "timestamp": 1762755657.6320271
+  },
+  {
+    "test": "Dashboard Tab Click - Exceptions",
+    "status": "PASS",
+    "details": "Successfully clicked Exceptions tab",
+    "issues": [],
+    "timestamp": 1762755659.8029215
+  },
+  {
+    "test": "Dashboard Tab - Approvals",
+    "status": "PASS",
+    "details": "Tab is enabled",
+    "issues": [],
+    "timestamp": 1762755660.1289198
+  },
+  {
+    "test": "Dashboard Tab Click - Approvals",
+    "status": "PASS",
+    "details": "Successfully clicked Approvals tab",
+    "issues": [],
+    "timestamp": 1762755662.3076944
+  },
+  {
+    "test": "Dashboard Tab - Exports",
+    "status": "PASS",
+    "details": "Tab is enabled",
+    "issues": [],
+    "timestamp": 1762755662.6649349
+  },
+  {
+    "test": "Dashboard Tab Click - Exports",
+    "status": "PASS",
+    "details": "Successfully clicked Exports tab",
+    "issues": [],
+    "timestamp": 1762755664.8411796
+  },
+  {
+    "test": "Dashboard Tab - Analytics",
+    "status": "PASS",
+    "details": "Tab is enabled",
+    "issues": [],
+    "timestamp": 1762755665.165093
+  },
+  {
+    "test": "Dashboard Tab Click - Analytics",
+    "status": "PASS",
+    "details": "Successfully clicked Analytics tab",
+    "issues": [],
+    "timestamp": 1762755667.3147771
+  },
+  {
+    "test": "Dashboard Tab - Email",
+    "status": "PASS",
+    "details": "Tab is enabled",
+    "issues": [],
+    "timestamp": 1762755667.6334786
+  },
+  {
+    "test": "Dashboard Tab Click - Email",
+    "status": "PASS",
+    "details": "Successfully clicked Email tab",
+    "issues": [],
+    "timestamp": 1762755669.7289202
+  },
+  {
+    "test": "Exception Count Badge",
+    "status": "WARN",
+    "details": "No exception badge found",
+    "issues": [],
+    "timestamp": 1762755673.1857762
+  },
+  {
+    "test": "Exception Content",
+    "status": "WARN",
+    "details": "Exception content not clearly visible",
+    "issues": [],
+    "timestamp": 1762755673.1891422
+  },
+  {
+    "test": "Email Integration",
+    "status": "FAIL",
+    "details": "Page.wait_for_selector: Timeout 5000ms exceeded.\nCall log:\n  - waiting for locator(\"a:has-text(\\\"Email Integration\\\")\") to be visible\n",
+    "issues": [],
+    "timestamp": 1762755678.566431
+  },
+  {
+    "test": "Responsive - Mobile",
+    "status": "PASS",
+    "details": "Content accessible at 375x667",
+    "issues": [],
+    "timestamp": 1762755679.6152656
+  },
+  {
+    "test": "Responsive - Tablet",
+    "status": "PASS",
+    "details": "Content accessible at 768x1024",
+    "issues": [],
+    "timestamp": 1762755680.9787948
+  },
+  {
+    "test": "Responsive - Desktop",
+    "status": "PASS",
+    "details": "Content accessible at 1920x1080",
+    "issues": [],
+    "timestamp": 1762755682.3191824
+  },
+  {
+    "test": "Page Load Performance",
+    "status": "PASS",
+    "details": "Load time: 0.00s",
+    "issues": [],
+    "timestamp": 1762755686.40495
+  },
+  {
+    "test": "Loading Indicators",
+    "status": "WARN",
+    "details": "No loading indicators found",
+    "issues": [],
+    "timestamp": 1762755686.4330966
+  }
+]

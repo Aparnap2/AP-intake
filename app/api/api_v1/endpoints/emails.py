@@ -148,7 +148,7 @@ async def ingest_gmail_emails(
         # Trigger background task
         task = monitor_gmail_inbox.delay(
             user_id=str(credentials.user_id),
-            credentials_data=gmail_creds.dict(),
+            credentials_data=gmail_creds.model_dump(),
             days_back=request.days_back,
             max_emails=request.max_emails,
             auto_process=request.auto_process
@@ -219,7 +219,7 @@ async def create_monitoring_config(
 
             schedule_task = schedule_email_monitoring.delay(
                 user_id=str(request.user_id),
-                credentials_data=gmail_creds.dict(),
+                credentials_data=gmail_creds.model_dump(),
                 schedule_minutes=request.monitoring_interval_minutes
             )
 

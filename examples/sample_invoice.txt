@@ -1,0 +1,10 @@
+Sample Invoice for Testing
+Vendor: Test Company
+Invoice #: INV-2024-TEST
+Date: 2024-11-12
+Amount: $1500.00
+Description: Test invoice upload workflow
+Line Items:
+1. Test Service - $1000.00
+2. Additional Service - $500.00
+Total: $1500.00

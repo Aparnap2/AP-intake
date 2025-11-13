@@ -352,7 +352,7 @@ class N8nService:
             workflow_id=workflow_id,
             data={
                 "event_type": "working_capital_analysis",
-                "analysis_data": analysis_request.dict(),
+                "analysis_data": analysis_request.model_dump(),
                 "timestamp": datetime.utcnow().isoformat()
             }
         )
@@ -431,11 +431,224 @@ class N8nService:
             workflow_id=workflow_id,
             data={
                 "event_type": "weekly_report_generation",
-                "report_data": report_request.dict(),
+                "report_data": report_request.model_dump(),
                 "timestamp": datetime.utcnow().isoformat()
             }
         )
 
+        return await self.trigger_workflow(request)
+
+    async def schedule_monday_digest(self, digest_request) -> Dict[str, Any]:
+        """
+        Schedule Monday 9am CFO digest delivery with enhanced workflow triggers.
+
+        Args:
+            digest_request: N8nCFODigestRequest with digest data
+
+        Returns:
+            Workflow execution response
+        """
+        workflow_id = getattr(settings, 'N8N_CFO_DIGEST_WORKFLOW_ID', 'cfo_monday_digest')
+
+        # Calculate next Monday 9am delivery time
+        next_monday_9am = self._calculate_next_monday_9am()
+
+        # Prepare enhanced workflow data
+        request = N8nWorkflowExecutionRequest(
+            workflow_id=workflow_id,
+            data={
+                "event_type": "cfo_monday_digest",
+                "digest_data": digest_request.model_dump(),
+                "schedule_info": {
+                    "scheduled_for": next_monday_9am.isoformat(),
+                    "delivery_time": "09:00 UTC",
+                    "day_of_week": "monday",
+                    "recurrence": "weekly"
+                },
+                "priority": digest_request.delivery_priority,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
+        logger.info(f"Scheduling Monday CFO digest for {next_monday_9am.isoformat()}")
+        return await self.trigger_workflow(request)
+
+    async def trigger_monday_digest_generation(self, week_start: Optional[datetime] = None) -> Dict[str, Any]:
+        """
+        Trigger immediate Monday digest generation workflow.
+
+        Args:
+            week_start: Optional week start date (defaults to last week)
+
+        Returns:
+            Workflow execution response
+        """
+        workflow_id = getattr(settings, 'N8N_CFO_DIGEST_GENERATION_WORKFLOW_ID', 'cfo_digest_generation')
+
+        # Calculate week dates
+        if week_start is None:
+            today = datetime.utcnow()
+            days_since_monday = today.weekday()
+            week_start = today - timedelta(days=days_since_monday + 7)
+
+        week_end = week_start + timedelta(days=6)
+
+        # Prepare digest generation request
+        digest_request = {
+            "week_start": week_start.isoformat(),
+            "week_end": week_end.isoformat(),
+            "include_working_capital_analysis": True,
+            "include_action_items": True,
+            "include_evidence_links": True,
+            "priority_threshold": "medium",
+            "business_impact_threshold": "moderate",
+            "delivery_time": "09:00",
+            "schedule_delivery": True
+        }
+
+        request = N8nWorkflowExecutionRequest(
+            workflow_id=workflow_id,
+            data={
+                "event_type": "cfo_digest_generation",
+                "digest_request": digest_request,
+                "generation_metadata": {
+                    "trigger_type": "scheduled",
+                    "requested_at": datetime.utcnow().isoformat(),
+                    "target_delivery": "Monday 9:00 AM"
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
+        logger.info(f"Triggering Monday CFO digest generation for week {week_start.date()} to {week_end.date()}")
+        return await self.trigger_workflow(request)
+
+    async def setup_monday_digest_schedule(self, schedule_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Setup recurring Monday 9am CFO digest schedule.
+
+        Args:
+            schedule_config: Configuration for the schedule
+
+        Returns:
+            Schedule setup response
+        """
+        workflow_id = getattr(settings, 'N8N_CFO_DIGEST_SCHEDULE_WORKFLOW_ID', 'cfo_digest_schedule')
+
+        # Default schedule configuration
+        default_config = {
+            "is_active": True,
+            "delivery_day": "monday",
+            "delivery_time": "09:00",
+            "timezone": "UTC",
+            "priority_threshold": "medium",
+            "business_impact_threshold": "moderate",
+            "include_working_capital_analysis": True,
+            "include_action_items": True,
+            "recipients": ["cfo@company.com", "finance-team@company.com"]
+        }
+
+        # Merge with provided config
+        merged_config = {**default_config, **schedule_config}
+
+        # Calculate next delivery time
+        next_delivery = self._calculate_next_monday_9am(
+            merged_config.get("delivery_time", "09:00")
+        )
+
+        request = N8nWorkflowExecutionRequest(
+            workflow_id=workflow_id,
+            data={
+                "event_type": "setup_cfo_digest_schedule",
+                "schedule_config": merged_config,
+                "schedule_metadata": {
+                    "next_delivery": next_delivery.isoformat(),
+                    "setup_at": datetime.utcnow().isoformat(),
+                    "schedule_type": "recurring_weekly"
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
+        logger.info(f"Setting up Monday CFO digest schedule: {merged_config}")
+        return await self.trigger_workflow(request)
+
+    def _calculate_next_monday_9am(self, delivery_time: str = "09:00") -> datetime:
+        """Calculate next Monday 9am in specified timezone."""
+        today = datetime.utcnow()
+
+        # Parse delivery time
+        hour, minute = map(int, delivery_time.split(':'))
+
+        # Find next Monday
+        days_until_monday = (7 - today.weekday()) % 7 or 7  # Next Monday (0 = Monday)
+        next_monday = today + timedelta(days=days_until_monday)
+
+        # Set delivery time
+        next_monday_delivery = next_monday.replace(
+            hour=hour, minute=minute, second=0, microsecond=0
+        )
+
+        return next_monday_delivery
+
+    async def update_cfo_digest_recipients(self, digest_id: str, recipients: List[str]) -> Dict[str, Any]:
+        """
+        Update CFO digest recipients for scheduled delivery.
+
+        Args:
+            digest_id: ID of the digest
+            recipients: List of recipient email addresses
+
+        Returns:
+            Update response
+        """
+        workflow_id = getattr(settings, 'N8N_CFO_DIGEST_UPDATE_WORKFLOW_ID', 'cfo_digest_update')
+
+        request = N8nWorkflowExecutionRequest(
+            workflow_id=workflow_id,
+            data={
+                "event_type": "update_cfo_digest_recipients",
+                "digest_id": digest_id,
+                "new_recipients": recipients,
+                "update_metadata": {
+                    "updated_at": datetime.utcnow().isoformat(),
+                    "update_type": "recipients"
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
+        logger.info(f"Updating CFO digest {digest_id} recipients: {recipients}")
+        return await self.trigger_workflow(request)
+
+    async def cancel_monday_digest(self, digest_id: str, reason: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Cancel scheduled Monday CFO digest.
+
+        Args:
+            digest_id: ID of the digest to cancel
+            reason: Optional cancellation reason
+
+        Returns:
+            Cancellation response
+        """
+        workflow_id = getattr(settings, 'N8N_CFO_DIGEST_CANCEL_WORKFLOW_ID', 'cfo_digest_cancel')
+
+        request = N8nWorkflowExecutionRequest(
+            workflow_id=workflow_id,
+            data={
+                "event_type": "cancel_cfo_digest",
+                "digest_id": digest_id,
+                "cancellation_reason": reason or "Cancelled by user",
+                "cancellation_metadata": {
+                    "cancelled_at": datetime.utcnow().isoformat(),
+                    "cancellation_type": "manual"
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
+        logger.info(f"Cancelling Monday CFO digest {digest_id}. Reason: {reason}")
         return await self.trigger_workflow(request)
 
     def validate_webhook_signature(

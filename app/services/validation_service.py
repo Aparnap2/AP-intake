@@ -173,7 +173,7 @@ class ValidationService:
                     logger.error(f"Failed to create exceptions for invoice {invoice_id}: {exc_error}")
                     # Don't fail validation if exception creation fails
 
-            return result.dict()
+            return result.model_dump()
 
         except Exception as e:
             logger.error(f"Validation failed for invoice {invoice_id}: {e}")
@@ -208,7 +208,7 @@ class ValidationService:
                 validator_version="2.0.0",
                 header_summary={},
                 lines_summary={}
-            ).dict()
+            ).model_dump()
 
     async def _validate_structure(
         self, header: Dict[str, Any], lines: List[Dict[str, Any]],

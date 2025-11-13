@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.api_v1 import deps
+from app.api.api_v1.deps import get_async_session, get_current_active_user
 from app.services.analytics_service import AnalyticsService
 
 router = APIRouter()
@@ -18,8 +18,8 @@ router = APIRouter()
 def get_kpi_summary(
     start_date: Optional[str] = Query(None, description="Start date in ISO format (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date in ISO format (YYYY-MM-DD)"),
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """
     Get executive KPI summary for the specified period.
@@ -58,8 +58,8 @@ def get_kpi_summary(
 def get_accuracy_metrics(
     start_date: Optional[str] = Query(None, description="Start date in ISO format"),
     end_date: Optional[str] = Query(None, description="End date in ISO format"),
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """Get extraction accuracy and validation metrics."""
     try:
@@ -94,8 +94,8 @@ def get_accuracy_metrics(
 def get_exception_metrics(
     start_date: Optional[str] = Query(None, description="Start date in ISO format"),
     end_date: Optional[str] = Query(None, description="End date in ISO format"),
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """Get exception analysis and resolution metrics."""
     try:
@@ -125,8 +125,8 @@ def get_exception_metrics(
 def get_cycle_time_metrics(
     start_date: Optional[str] = Query(None, description="Start date in ISO format"),
     end_date: Optional[str] = Query(None, description="End date in ISO format"),
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """Get processing cycle time metrics."""
     try:
@@ -156,8 +156,8 @@ def get_cycle_time_metrics(
 def get_productivity_metrics(
     start_date: Optional[str] = Query(None, description="Start date in ISO format"),
     end_date: Optional[str] = Query(None, description="End date in ISO format"),
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """Get productivity and efficiency metrics."""
     try:
@@ -187,8 +187,8 @@ def get_productivity_metrics(
 def get_reviewer_performance(
     start_date: Optional[str] = Query(None, description="Start date in ISO format"),
     end_date: Optional[str] = Query(None, description="End date in ISO format"),
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """Get reviewer performance metrics and rankings."""
     try:
@@ -219,8 +219,8 @@ def get_trend_analysis(
     metric: str = Query("all", description="Metric to analyze: volume, accuracy, exceptions, or all"),
     start_date: Optional[str] = Query(None, description="Start date in ISO format"),
     end_date: Optional[str] = Query(None, description="End date in ISO format"),
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """Get trend analysis for specified metrics."""
     try:
@@ -250,8 +250,8 @@ def get_trend_analysis(
 def get_finance_ops_dashboard(
     start_date: Optional[str] = Query(None, description="Start date in ISO format"),
     end_date: Optional[str] = Query(None, description="End date in ISO format"),
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """
     Get finance operations dashboard data.
@@ -306,8 +306,8 @@ def get_finance_ops_dashboard(
 def get_management_dashboard(
     start_date: Optional[str] = Query(None, description="Start date in ISO format"),
     end_date: Optional[str] = Query(None, description="End date in ISO format"),
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """
     Get management dashboard data.
@@ -353,8 +353,8 @@ def get_reviewer_dashboard(
     start_date: Optional[str] = Query(None, description="Start date in ISO format"),
     end_date: Optional[str] = Query(None, description="End date in ISO format"),
     reviewer_id: Optional[str] = Query(None, description="Specific reviewer ID (for individual view)"),
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """
     Get reviewer dashboard data.
@@ -410,8 +410,8 @@ def get_reviewer_dashboard(
 
 @router.get("/real-time", response_model=Dict[str, Any])
 def get_real_time_metrics(
-    db: Session = Depends(deps.get_db),
-    current_user: Any = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: Any = Depends(get_current_active_user),
 ):
     """Get real-time system metrics for dashboard monitoring."""
     try:

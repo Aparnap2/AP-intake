@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class ExportFormat(str, Enum):
@@ -215,10 +215,11 @@ class ExportDestinationConfig(BaseModel):
     destination: ExportDestination
     config: Dict[str, Any] = Field(..., description="Destination-specific configuration")
 
-    @validator('config')
-    def validate_destination_config(cls, v, values):
+    @field_validator('config')
+    @classmethod
+    def validate_destination_config(cls, v, info):
         """Validate destination-specific configuration."""
-        destination = values.get('destination')
+        destination = info.data.get('destination')
         if destination == ExportDestination.FILE_STORAGE:
             required_fields = ['path', 'filename_pattern']
             for field in required_fields:
@@ -260,5 +261,4 @@ class ExportJob(BaseModel):
     created_at: datetime = Field(..., description="Export creation time")
     updated_at: datetime = Field(..., description="Export last update time")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

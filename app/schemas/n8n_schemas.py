@@ -7,7 +7,7 @@ webhook events, and integration with the AP/AR system.
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class N8nWorkflowType(str, Enum):
@@ -51,7 +51,8 @@ class N8nWebhookEvent(BaseModel):
     signature: Optional[str] = Field(None, description="Webhook signature for validation")
     workflow_type: Optional[N8nWorkflowType] = Field(None, description="Type of workflow")
 
-    @validator('timestamp')
+    @field_validator('timestamp')
+    @classmethod
     def validate_timestamp(cls, v):
         """Validate timestamp is not in the future."""
         if v > datetime.utcnow():
@@ -66,9 +67,11 @@ class N8nWorkflowTrigger(BaseModel):
     name: Optional[str] = Field(None, description="Trigger name")
     position: Optional[Dict[str, int]] = Field(None, description="Position in workflow diagram")
 
-    @validator('config')
-    def validate_config(cls, v, values):
+    @field_validator('config')
+    @classmethod
+    def validate_config(cls, v, info):
         """Validate trigger configuration based on trigger type."""
+        values = info.data if hasattr(info, 'data') else {}
         trigger_type = values.get('type')
 
         if trigger_type == N8nTriggerType.WEBHOOK:
@@ -91,7 +94,8 @@ class N8nWorkflowNode(BaseModel):
     parameters: Optional[Dict[str, Any]] = Field(None, description="Node parameters")
     credentials: Optional[Dict[str, str]] = Field(None, description="Node credentials reference")
 
-    @validator('id')
+    @field_validator('id')
+    @classmethod
     def validate_node_id(cls, v):
         """Validate node ID format."""
         if not v or not isinstance(v, str):
@@ -116,7 +120,8 @@ class N8nWorkflowTemplate(BaseModel):
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
 
-    @validator('version')
+    @field_validator('version')
+    @classmethod
     def validate_version(cls, v):
         """Validate semantic version format."""
         import re
@@ -136,14 +141,16 @@ class N8nWorkflowExecutionRequest(BaseModel):
     max_retries: Optional[int] = Field(default=3, description="Maximum retry attempts")
     timeout: Optional[int] = Field(None, description="Execution timeout in seconds")
 
-    @validator('workflow_id')
+    @field_validator('workflow_id')
+    @classmethod
     def validate_workflow_id(cls, v):
         """Validate workflow ID is not empty."""
         if not v or not isinstance(v, str):
             raise ValueError("Workflow ID must be a non-empty string")
         return v
 
-    @validator('execution_mode')
+    @field_validator('execution_mode')
+    @classmethod
     def validate_execution_mode(cls, v):
         """Validate execution mode."""
         if v not in ['sync', 'async']:
@@ -164,7 +171,8 @@ class N8nWorkflowExecutionResponse(BaseModel):
     node_results: Optional[Dict[str, Any]] = Field(None, description="Results from individual nodes")
     logs: Optional[List[str]] = Field(None, description="Execution logs")
 
-    @validator('runtime_ms')
+    @field_validator('runtime_ms')
+    @classmethod
     def validate_runtime(cls, v, values):
         """Validate runtime is reasonable."""
         if v is not None and (v < 0 or v > 86400000):  # Max 24 hours
@@ -189,7 +197,8 @@ class N8nAPInvoiceData(BaseModel):
     validation_issues: Optional[List[Dict[str, Any]]] = Field(None, description="Validation issues")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
-    @validator('total_amount')
+    @field_validator('total_amount')
+    @classmethod
     def validate_total_amount(cls, v):
         """Validate total amount is non-negative."""
         if v < 0:
@@ -213,7 +222,8 @@ class N8nARInvoiceData(BaseModel):
     payment_terms: Optional[str] = Field(None, description="Payment terms")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
-    @validator('customer_email')
+    @field_validator('customer_email')
+    @classmethod
     def validate_customer_email(cls, v):
         """Validate customer email format."""
         import re
@@ -231,7 +241,8 @@ class N8nWorkingCapitalRequest(BaseModel):
     customer_segments: Optional[List[str]] = Field(None, description="Customer segments to analyze")
     vendor_categories: Optional[List[str]] = Field(None, description="Vendor categories to analyze")
 
-    @validator('period_days')
+    @field_validator('period_days')
+    @classmethod
     def validate_period_days(cls, v):
         """Validate analysis period."""
         if v < 1 or v > 365:
@@ -251,7 +262,8 @@ class N8nCustomerOnboardingRequest(BaseModel):
     contact_person: Optional[Dict[str, str]] = Field(None, description="Primary contact person")
     requirements: Optional[List[str]] = Field(None, description="Special requirements")
 
-    @validator('credit_limit')
+    @field_validator('credit_limit')
+    @classmethod
     def validate_credit_limit(cls, v):
         """Validate credit limit is non-negative."""
         if v is not None and v < 0:
@@ -271,7 +283,8 @@ class N8nExceptionHandlingRequest(BaseModel):
     context_data: Optional[Dict[str, Any]] = Field(None, description="Additional context data")
     assignee: Optional[str] = Field(None, description="Assigned user/team")
 
-    @validator('severity')
+    @field_validator('severity')
+    @classmethod
     def validate_severity(cls, v):
         """Validate severity level."""
         valid_severities = ['low', 'medium', 'high', 'critical']
@@ -290,15 +303,18 @@ class N8nWeeklyReportRequest(BaseModel):
     report_format: str = Field(default="pdf", description="Report format")
     custom_metrics: Optional[List[str]] = Field(None, description="Custom metrics to include")
 
-    @validator('week_end')
-    def validate_week_dates(cls, v, values):
+    @field_validator('week_end')
+    @classmethod
+    def validate_week_dates(cls, v, info):
         """Validate week dates are logical."""
+        values = info.data if hasattr(info, 'data') else {}
         week_start = values.get('week_start')
         if week_start and v <= week_start:
             raise ValueError("Week end must be after week start")
         return v
 
-    @validator('report_format')
+    @field_validator('report_format')
+    @classmethod
     def validate_report_format(cls, v):
         """Validate report format."""
         valid_formats = ['pdf', 'excel', 'csv', 'json']
@@ -321,14 +337,16 @@ class N8nWorkflowMetrics(BaseModel):
     most_common_errors: Optional[List[Dict[str, Any]]] = Field(None, description="Most common errors")
     performance_trend: Optional[List[Dict[str, Any]]] = Field(None, description="Performance trend data")
 
-    @validator('success_rate')
+    @field_validator('success_rate')
+    @classmethod
     def validate_success_rate(cls, v):
         """Validate success rate range."""
         if not 0.0 <= v <= 1.0:
             raise ValueError("Success rate must be between 0.0 and 1.0")
         return v
 
-    @validator('error_rate')
+    @field_validator('error_rate')
+    @classmethod
     def validate_error_rate(cls, v):
         """Validate error rate range."""
         if not 0.0 <= v <= 1.0:
@@ -347,7 +365,8 @@ class N8nConnectionInfo(BaseModel):
     active_workflows: Optional[int] = Field(None, description="Number of active workflows")
     system_info: Optional[Dict[str, Any]] = Field(None, description="System information")
 
-    @validator('base_url')
+    @field_validator('base_url')
+    @classmethod
     def validate_base_url(cls, v):
         """Validate base URL format."""
         from urllib.parse import urlparse
@@ -366,7 +385,4 @@ class N8nApiResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
     request_id: Optional[str] = Field(None, description="Request ID for tracking")
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    # JSON encoding is now handled automatically by Pydantic v2

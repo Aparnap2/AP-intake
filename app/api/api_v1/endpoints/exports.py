@@ -44,7 +44,7 @@ async def create_export_template(
             name=template_data.name,
             description=template_data.description,
             format=template_data.format,
-            field_mappings=[m.dict() for m in template_data.field_mappings],
+            field_mappings=[m.model_dump() for m in template_data.field_mappings],
             header_config=template_data.header_config,
             footer_config=template_data.footer_config,
             compression=template_data.compression,
@@ -109,10 +109,10 @@ async def update_export_template(
         raise HTTPException(status_code=404, detail="Export template not found")
 
     # Update fields
-    update_data = template_data.dict(exclude_unset=True)
+    update_data = template_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         if field == "field_mappings" and value:
-            setattr(template, field, [m.dict() for m in value])
+            setattr(template, field, [m.model_dump() for m in value])
         else:
             setattr(template, field, value)
 

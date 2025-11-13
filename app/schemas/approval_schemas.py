@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class ApprovalStatus(str, Enum):
@@ -94,8 +94,7 @@ class ApprovalWorkflowResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApprovalRequestCreate(BaseModel):
@@ -126,9 +125,11 @@ class ApprovalDecisionCreate(BaseModel):
     comments: Optional[str] = Field(None, max_length=2000)
     decision_data: Optional[Dict[str, Any]] = None
 
-    @validator('comments')
-    def validate_comments(cls, v, values):
+    @field_validator('comments')
+    @classmethod
+    def validate_comments(cls, v, info):
         """Validate comments based on action."""
+        values = info.data if hasattr(info, 'data') else {}
         action = values.get('action')
         if action == ApprovalAction.REJECT and not v:
             raise ValueError("Comments are required for rejection")
@@ -148,8 +149,7 @@ class ApprovalDecisionResponse(BaseModel):
     decision_data: Optional[Dict[str, Any]]
     decision_time: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApprovalStepResponse(BaseModel):
@@ -165,8 +165,7 @@ class ApprovalStepResponse(BaseModel):
     configuration: Dict[str, Any]
     description: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApprovalRequestResponse(BaseModel):
@@ -188,8 +187,7 @@ class ApprovalRequestResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApproverAssignmentResponse(BaseModel):
@@ -203,8 +201,7 @@ class ApproverAssignmentResponse(BaseModel):
     assigned_at: datetime
     acknowledged_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApprovalAuditLogResponse(BaseModel):
@@ -221,8 +218,7 @@ class ApprovalAuditLogResponse(BaseModel):
     correlation_id: Optional[str]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApprovalTemplateCreate(BaseModel):
@@ -252,8 +248,7 @@ class ApprovalTemplateResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApprovalNotificationResponse(BaseModel):
@@ -273,8 +268,7 @@ class ApprovalNotificationResponse(BaseModel):
     retry_count: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApprovalStatusResponse(BaseModel):
@@ -342,7 +336,7 @@ class ApprovalFilter(BaseModel):
 class StagedExportCreate(BaseModel):
     """Schema for creating staged exports."""
     invoice_id: uuid.UUID
-    export_format: str = Field(..., regex="^(csv|json|xml|xlsx)$")
+    export_format: str = Field(..., pattern="^(csv|json|xml|xlsx)$")
     export_data: Dict[str, Any]
     workflow_id: uuid.UUID
     title: Optional[str] = None
@@ -363,8 +357,7 @@ class StagedExportResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExportApprovalRequest(BaseModel):
@@ -386,8 +379,7 @@ class DiffComparisonResponse(BaseModel):
     summary: Dict[str, Any]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WorkflowStepAction(BaseModel):
@@ -418,5 +410,4 @@ class WorkflowExecutionResponse(BaseModel):
     started_at: datetime
     completed_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -1,0 +1,86 @@
+================================================================================
+FOCUSED VALIDATION DIAGNOSTIC REPORT
+================================================================================
+
+STRUCTURAL_VALIDATION RESULTS:
+----------------------------------------
+Success Rate: 2/3 (66.7%)
+  [FAIL] valid_invoice_structure
+    Description: Test completely valid invoice structure
+    Expected: PASS
+    Actual: FAIL
+    Issues Found:
+      - VALIDATION_ERROR: Vendor validation error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+      - VALIDATION_ERROR: Currency validation error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+      - VALIDATION_ERROR: Duplicate check error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+  [PASS] missing_vendor_name
+    Description: Test invoice with empty vendor name
+  [PASS] invalid_date_format
+    Description: Test with invalid date format
+
+MATHEMATICAL_VALIDATION RESULTS:
+----------------------------------------
+Success Rate: 2/3 (66.7%)
+  [FAIL] perfect_calculations
+    Description: Test with perfect mathematical calculations
+    Expected: PASS
+    Actual: FAIL
+    Issues Found:
+      - VALIDATION_ERROR: Vendor validation error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+      - VALIDATION_ERROR: Currency validation error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+      - VALIDATION_ERROR: Duplicate check error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+  [PASS] line_calculation_error
+    Description: Test with incorrect line item calculation
+  [PASS] total_mismatch
+    Description: Test with total amount mismatch
+
+FIELD_MAPPING RESULTS:
+----------------------------------------
+Success Rate: 0/4 (0.0%)
+  [FAIL] field_mapping_test_1
+    Description: Test field mapping with: ['vendor_name', 'total_amount']
+    Expected: PASS
+    Actual: FAIL
+    Issues Found:
+      - LINE_MATH_MISMATCH: Line item calculation errors found
+      - VALIDATION_ERROR: Vendor validation error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+      - VALIDATION_ERROR: Currency validation error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+      - VALIDATION_ERROR: Duplicate check error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+  [FAIL] field_mapping_test_2
+    Description: Test field mapping with: ['vendor', 'total']
+    Expected: PASS
+    Actual: FAIL
+    Issues Found:
+      - MISSING_REQUIRED_FIELD: Missing required fields: vendor_name, total_amount
+      - LINE_MATH_MISMATCH: Line item calculation errors found
+      - MISSING_REQUIRED_FIELD: Vendor name not provided
+  [FAIL] field_mapping_test_3
+    Description: Test field mapping with: ['vendor', 'amount']
+    Expected: PASS
+    Actual: FAIL
+    Issues Found:
+      - MISSING_REQUIRED_FIELD: Missing required fields: vendor_name, total_amount
+      - LINE_MATH_MISMATCH: Line item calculation errors found
+      - MISSING_REQUIRED_FIELD: Vendor name not provided
+  [FAIL] field_mapping_test_4
+    Description: Test field mapping with: ['vendor_name', 'amount']
+    Expected: PASS
+    Actual: FAIL
+    Issues Found:
+      - MISSING_REQUIRED_FIELD: Missing required fields: total_amount
+      - LINE_MATH_MISMATCH: Line item calculation errors found
+      - VALIDATION_ERROR: Vendor validation error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+      - VALIDATION_ERROR: Currency validation error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+      - VALIDATION_ERROR: Duplicate check error: [Errno 111] Connect call failed ('127.0.0.1', 5432)
+
+================================================================================
+KEY FINDINGS AND RECOMMENDATIONS
+================================================================================
+
+• CRITICAL: Valid invoices are failing structural validation - check field mapping logic
+
+• CRITICAL: Perfect mathematical calculations are failing - check tolerance and precision logic
+
+• ISSUE: 4 field mapping variations are failing - expand field mapping logic
+
+• OVERALL: Validation framework requires significant improvement before production use

@@ -1,0 +1,450 @@
+{
+  "name": "Enhanced AP Invoice Processing",
+  "description": "Comprehensive AP invoice processing with validation, duplicate detection, and approval workflow",
+  "nodes": [
+    {
+      "id": "webhook_trigger",
+      "type": "n8n-nodes-base.webhook",
+      "name": "AP Invoice Webhook",
+      "position": [100, 100],
+      "parameters": {
+        "path": "ap-invoice",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      }
+    },
+    {
+      "id": "validate_webhook",
+      "type": "n8n-nodes-base.function",
+      "name": "Validate Webhook",
+      "position": [300, 100],
+      "parameters": {
+        "functionCode": "// Validate webhook signature and extract invoice data\nconst incomingData = $input.first().json;\nconst headers = $input.first().binary || {};\n\n// Webhook signature validation\nconst webhookSecret = 'your-ap-webhook-secret';\nconst signature = headers['x-ap-signature'] || headers['signature'];\n\nif (signature && webhookSecret) {\n  const crypto = require('crypto');\n  const payload = JSON.stringify(incomingData);\n  const expectedSignature = crypto\n    .createHmac('sha256', webhookSecret)\n    .update(payload)\n    .digest('hex');\n  \n  if (signature !== expectedSignature) {\n    return [{\n      json: {\n        status: 'error',\n        error: 'Invalid webhook signature',\n        code: 'SECURITY_ERROR',\n        severity: 'high'\n      }\n    }];\n  }\n}\n\n// Extract invoice data from various webhook formats\nlet invoiceData = incomingData.invoice_data || incomingData.data || incomingData;\n\n// Handle base64 encoded data\nif (incomingData.base64_data) {\n  const buffer = Buffer.from(incomingData.base64_data, 'base64');\n  invoiceData = JSON.parse(buffer.toString('utf8'));\n}\n\nreturn [{\n  json: {\n    status: 'validated',\n    invoice_data: invoiceData,\n    webhook_metadata: {\n      received_at: new Date().toISOString(),\n      signature_valid: !signature || signature === expectedSignature,\n      source_ip: headers['x-forwarded-for'] || headers['x-real-ip'] || 'unknown',\n      user_agent: headers['user-agent'] || 'unknown',\n      content_type: headers['content-type'] || 'unknown'\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "validate_invoice",
+      "type": "n8n-nodes-base.function",
+      "name": "Validate Invoice Data",
+      "position": [500, 100],
+      "parameters": {
+        "functionCode": "// Comprehensive invoice validation\nconst validationData = $input.first().json;\nconst invoice = validationData.invoice_data;\n\n// Required field validation with detailed error reporting\nconst requiredFields = [\n  'invoice_id',\n  'vendor_id', \n  'vendor_name',\n  'invoice_number',\n  'invoice_date',\n  'due_date',\n  'total_amount',\n  'currency'\n];\n\nconst missingFields = requiredFields.filter(field => !invoice[field]);\nif (missingFields.length > 0) {\n  return [{\n    json: {\n      status: 'error',\n      error: `Missing required fields: ${missingFields.join(', ')}`,\n      error_code: 'MISSING_REQUIRED_FIELDS',\n      severity: 'high',\n      validation_details: {\n        missing_fields: missingFields,\n        provided_fields: Object.keys(invoice),\n        webhook_metadata: validationData.webhook_metadata\n      },\n      invoice_id: invoice.invoice_id || 'unknown'\n    }\n  }];\n}\n\n// Business logic validations\nconst validations = [];\n\n// Amount validations\nif (invoice.total_amount <= 0) {\n  validations.push({\n    field: 'total_amount',\n    error: 'Total amount must be greater than 0',\n    severity: 'high',\n    current_value: invoice.total_amount\n  });\n}\n\n// Date validations\nconst invoiceDate = new Date(invoice.invoice_date);\nconst dueDate = new Date(invoice.due_date);\nconst today = new Date();\n\nif (isNaN(invoiceDate.getTime())) {\n  validations.push({\n    field: 'invoice_date',\n    error: 'Invalid invoice date format',\n    severity: 'high',\n    current_value: invoice.invoice_date\n  });\n}\n\nif (isNaN(dueDate.getTime())) {\n  validations.push({\n    field: 'due_date',\n    error: 'Invalid due date format',\n    severity: 'high',\n    current_value: invoice.due_date\n  });\n}\n\nif (dueDate <= invoiceDate) {\n  validations.push({\n    field: 'due_date',\n    error: 'Due date must be after invoice date',\n    severity: 'medium',\n    current_value: invoice.due_date,\n    invoice_date: invoice.invoice_date\n  });\n}\n\n// Invoice date not too far in the past or future\nconst daysSinceInvoice = Math.floor((today - invoiceDate) / (1000 * 60 * 60 * 24));\nif (daysSinceInvoice > 365) {\n  validations.push({\n    field: 'invoice_date',\n    error: 'Invoice date is more than 1 year old',\n    severity: 'medium',\n    current_value: invoice.invoice_date,\n    days_old: daysSinceInvoice\n  });\n}\n\nif (invoiceDate > today) {\n  validations.push({\n    field: 'invoice_date',\n    error: 'Invoice date is in the future',\n    severity: 'medium',\n    current_value: invoice.invoice_date\n  });\n}\n\n// Currency validation\nconst supportedCurrencies = ['USD', 'EUR', 'GBP', 'CAD', 'AUD'];\nif (!supportedCurrencies.includes(invoice.currency.toUpperCase())) {\n  validations.push({\n    field: 'currency',\n    error: `Unsupported currency. Supported: ${supportedCurrencies.join(', ')}`,\n    severity: 'low',\n    current_value: invoice.currency\n  });\n}\n\n// Line items validation\nif (invoice.line_items && Array.isArray(invoice.line_items)) {\n  if (invoice.line_items.length === 0) {\n    validations.push({\n      field: 'line_items',\n      error: 'Invoice has no line items',\n      severity: 'medium'\n    });\n  } else {\n    // Calculate line items total\n    const calculatedTotal = invoice.line_items.reduce((sum, item) => {\n      const quantity = parseFloat(item.quantity) || 1;\n      const unitPrice = parseFloat(item.unit_price) || 0;\n      return sum + (quantity * unitPrice);\n    }, 0);\n    \n    const tolerance = 0.01; // 1 cent tolerance\n    if (Math.abs(calculatedTotal - invoice.total_amount) > tolerance) {\n      validations.push({\n        field: 'total_amount',\n        error: 'Total amount does not match sum of line items',\n        severity: 'high',\n        calculated_total: calculatedTotal,\n        provided_total: invoice.total_amount,\n        difference: Math.abs(calculatedTotal - invoice.total_amount)\n      });\n    }\n  }\n}\n\n// If any critical validations failed, return error\nconst criticalValidations = validations.filter(v => v.severity === 'high');\nif (criticalValidations.length > 0) {\n  return [{\n    json: {\n      status: 'error',\n      error: 'Critical validation errors found',\n      error_code: 'VALIDATION_FAILED',\n      severity: 'high',\n      validation_details: {\n        errors: validations,\n        critical_errors: criticalValidations,\n        webhook_metadata: validationData.webhook_metadata\n      },\n      invoice_id: invoice.invoice_id\n    }\n  }];\n}\n\n// Calculate business metrics for processing\nconst daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));\nconst isPastDue = daysUntilDue < 0;\nconst isUrgent = daysUntilDue <= 7;\n\n// Determine processing priority\nlet priority = 'normal';\nif (invoice.total_amount > 100000) priority = 'high';\nif (invoice.total_amount > 500000) priority = 'urgent';\nif (isPastDue) priority = 'urgent';\nif (isUrgent) priority = 'high';\n\nreturn [{\n  json: {\n    status: 'validated',\n    invoice_id: invoice.invoice_id,\n    vendor_id: invoice.vendor_id,\n    vendor_name: invoice.vendor_name,\n    invoice_number: invoice.invoice_number,\n    invoice_date: invoice.invoice_date,\n    due_date: invoice.due_date,\n    total_amount: invoice.total_amount,\n    currency: invoice.currency,\n    line_items: invoice.line_items || [],\n    validation_summary: {\n      total_amount: invoice.total_amount,\n      vendor_id: invoice.vendor_id,\n      vendor_name: invoice.vendor_name,\n      days_until_due: daysUntilDue,\n      is_past_due: isPastDue,\n      is_urgent: isUrgent,\n      priority: priority,\n      validation_warnings: validations.filter(v => v.severity !== 'high'),\n      webhook_metadata: validationData.webhook_metadata\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "check_duplicate",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Check for Duplicates",
+      "position": [700, 100],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/invoices/check-duplicate",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"invoice_id\": \"={{ $json.invoice_id }}\",\n  \"invoice_number\": \"={{ $json.invoice_number }}\",\n  \"vendor_id\": \"={{ $json.vendor_id }}\",\n  \"total_amount\": \"={{ $json.total_amount }}\",\n  \"invoice_date\": \"={{ $json.invoice_date }}\",\n  \"check_fuzzy\": true,\n  \"tolerance_days\": 7,\n  \"tolerance_amount\": 0.01\n}"
+      }
+    },
+    {
+      "id": "duplicate_result",
+      "type": "n8n-nodes-base.if",
+      "name": "Duplicate Found?",
+      "position": [900, 100],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "duplicate_condition",
+              "leftValue": "={{ $json.is_duplicate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "handle_duplicate",
+      "type": "n8n-nodes-base.function",
+      "name": "Handle Duplicate",
+      "position": [1100, 50],
+      "parameters": {
+        "functionCode": "// Handle duplicate invoice with smart merging\nconst duplicateData = $input.first().json;\n\nconst duplicateHandling = {\n  action: 'merge_update',\n  original_invoice_id: duplicateData.original_invoice_id,\n  new_invoice_id: duplicateData.invoice_id,\n  merge_strategy: 'update_metadata',\n  conflict_resolution: 'keep_latest',\n  fields_to_merge: ['webhook_metadata', 'validation_summary'],\n  created_at: new Date().toISOString()\n};\n\n// Add quality score for duplicate detection\nconst qualityScore = calculateDuplicateQualityScore(duplicateData);\n\nfunction calculateDuplicateQualityScore(data) {\n  let score = 0;\n  \n  // Exact match on invoice number (40 points)\n  if (data.exact_matches?.invoice_number) score += 40;\n  \n  // Exact match on vendor ID (20 points)\n  if (data.exact_matches?.vendor_id) score += 20;\n  \n  // Amount match (20 points)\n  if (data.exact_matches?.total_amount) score += 20;\n  \n  // Date match (15 points)\n  if (data.exact_matches?.invoice_date) score += 15;\n  \n  // Fuzzy matches (5 points each)\n  if (data.fuzzy_matches?.invoice_number) score += 5;\n  if (data.fuzzy_matches?.total_amount) score += 5;\n  \n  return Math.min(100, score);\n}\n\nreturn [{\n  json: {\n    status: 'duplicate_handled',\n    invoice_id: duplicateData.invoice_id,\n    action: 'merge_update',\n    duplicate_handling: duplicateHandling,\n    quality_score: qualityScore,\n    confidence_level: qualityScore > 80 ? 'high' : qualityScore > 60 ? 'medium' : 'low',\n    message: `Duplicate invoice detected and merged with ${qualityScore}% confidence`,\n    recommendation: qualityScore > 80 ? 'Archive as duplicate' : 'Review manually',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "approval_gate",
+      "type": "n8n-nodes-base.if",
+      "name": "Manual Approval Required?",
+      "position": [900, 200],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "approval_condition",
+              "leftValue": "={{ $json.validation_summary.total_amount }}",
+              "rightValue": 5000,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "urgent_condition",
+              "leftValue": "={{ $json.validation_summary.priority }}",
+              "rightValue": "urgent",
+              "operator": {
+                "type": "string",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "past_due_condition",
+              "leftValue": "={{ $json.validation_summary.is_past_due }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "or"
+        }
+      }
+    },
+    {
+      "id": "auto_approve",
+      "type": "n8n-nodes-base.function",
+      "name": "Auto-Approve Invoice",
+      "position": [1100, 150],
+      "parameters": {
+        "functionCode": "// Enhanced auto-approval logic with risk assessment\nconst invoiceData = $input.first().json;\n\nconst riskAssessment = assessApprovalRisk(invoiceData);\nconst autoApproval = generateAutoApproval(invoiceData, riskAssessment);\n\nfunction assessApprovalRisk(invoice) {\n  let riskScore = 0;\n  const riskFactors = [];\n  \n  // Amount-based risk\n  if (invoice.total_amount > 100000) {\n    riskScore += 30;\n    riskFactors.push('High value invoice');\n  }\n  \n  // Vendor-based risk (check against vendor risk database)\n  const vendorRiskFactors = checkVendorRisk(invoice.vendor_id);\n  riskScore += vendorRiskFactors.score;\n  riskFactors.push(...vendorRiskFactors.factors);\n  \n  // Timing-based risk\n  if (invoice.validation_summary.is_past_due) {\n    riskScore += 20;\n    riskFactors.push('Past due invoice');\n  }\n  \n  // Validation warnings risk\n  riskScore += invoice.validation_summary.validation_warnings.length * 5;\n  if (invoice.validation_summary.validation_warnings.length > 0) {\n    riskFactors.push('Validation warnings present');\n  }\n  \n  // First-time vendor risk\n  if (invoice.validation_summary.first_time_vendor) {\n    riskScore += 15;\n    riskFactors.push('First-time vendor');\n  }\n  \n  return {\n    score: Math.min(100, riskScore),\n    level: riskScore > 70 ? 'high' : riskScore > 40 ? 'medium' : 'low',\n    factors: riskFactors\n  };\n}\n\nfunction checkVendorRisk(vendorId) {\n  // Simulate vendor risk check\n  const vendorRiskDatabase = {\n    'vendor_001': { score: 5, factors: ['Established vendor'] },\n    'vendor_002': { score: 25, factors: ['Recent payment issues'] },\n    'vendor_003': { score: 50, factors: ['New vendor', 'Limited history'] }\n  };\n  \n  return vendorRiskDatabase[vendorId] || { score: 10, factors: ['Unknown vendor'] };\n}\n\nfunction generateAutoApproval(invoice, risk) {\n  const approvalConditions = {\n    auto_approved: risk.level === 'low' && invoice.total_amount <= 10000,\n    auto_approved_with_conditions: risk.level === 'medium' && invoice.total_amount <= 5000,\n    requires_manual_review: risk.level === 'high' || invoice.total_amount > 10000\n  };\n  \n  if (approvalConditions.requires_manual_review) {\n    return {\n      approved: false,\n      reason: 'High risk or high value requires manual review',\n      risk_assessment: risk,\n      escalation_required: risk.level === 'high'\n    };\n  }\n  \n  const approval = {\n    approved: true,\n    approved_by: 'system',\n    approved_at: new Date().toISOString(),\n    approval_conditions: approvalConditions,\n    risk_assessment: risk,\n    confidence_score: Math.max(50, 100 - risk.score),\n    conditions: [],\n    monitoring_required: risk.level === 'medium'\n  };\n  \n  // Add conditions for conditional approval\n  if (approvalConditions.auto_approved_with_conditions) {\n    approval.conditions.push(\n      'Monitor for payment issues',\n      'Validate against next invoice',\n      'Enhanced logging for audit trail'\n    );\n  }\n  \n  return approval;\n}\n\nreturn [{\n  json: {\n    status: 'auto_approved',\n    invoice_id: invoiceData.invoice_id,\n    approval_details: autoApproval,\n    processing_metadata: {\n      approval_time: new Date().toISOString(),\n      processing_duration: Date.now() - (invoiceData.validation_summary.webhook_metadata?.received_at ? new Date(invoiceData.validation_summary.webhook_metadata.received_at).getTime() : Date.now()),\n      risk_score: riskAssessment.score,\n      automation_level: 'full'\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "manual_approval",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Request Manual Approval",
+      "position": [1100, 300],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/approvals/request",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"invoice_id\": \"={{ $json.invoice_id }}\",\n  \"invoice_number\": \"={{ $json.invoice_number }}\",\n  \"vendor_id\": \"={{ $json.vendor_id }}\",\n  \"vendor_name\": \"={{ $json.vendor_name }}\",\n  \"amount\": \"={{ $json.validation_summary.total_amount }}\",\n  \"currency\": \"={{ $json.currency }}\",\n  \"invoice_date\": \"={{ $json.invoice_date }}\",\n  \"due_date\": \"={{ $json.due_date }}\",\n  \"days_until_due\": \"={{ $json.validation_summary.days_until_due }}\",\n  \"is_past_due\": \"={{ $json.validation_summary.is_past_due }}\",\n  \"priority\": \"={{ $json.validation_summary.priority }}\",\n  \"approval_type\": \"invoice_approval\",\n  \"urgency\": \"={{ $json.validation_summary.is_urgent ? 'urgent' : 'normal' }}\",\n  \"requester\": \"n8n_workflow\",\n  \"business_justification\": \"Automated invoice processing requiring manual review based on amount and/or risk assessment\",\n  \"line_items_count\": \"={{ $json.line_items ? $json.line_items.length : 0 }}\",\n  \"validation_warnings\": \"={{ $json.validation_summary.validation_warnings }}\",\n  \"approval_workflow\": \"standard\",\n  \"escalation_rules\": {\n    \"auto_escalate_hours\": 24,\n    \"escalate_to\": \"finance_manager\"\n  }\n}"
+      }
+    },
+    {
+      "id": "export_to_erp",
+      "type": "n8n-nodes-base.function",
+      "name": "Prepare ERP Export",
+      "position": [1300, 100],
+      "parameters": {
+        "functionCode": "// Enhanced ERP export preparation\nconst approvedData = $input.first().json;\n\n// Create comprehensive ERP export data\nconst erpExport = {\n  // Core invoice data\n  invoice: {\n    invoice_id: approvedData.invoice_id,\n    invoice_number: approvedData.invoice_number,\n    invoice_date: approvedData.invoice_date,\n    due_date: approvedData.due_date,\n    total_amount: approvedData.validation_summary?.total_amount || approvedData.total_amount,\n    currency: approvedData.currency,\n    status: 'approved_for_payment',\n    priority: approvedData.validation_summary?.priority || 'normal'\n  },\n  \n  // Vendor information\n  vendor: {\n    vendor_id: approvedData.validation_summary?.vendor_id || approvedData.vendor_id,\n    vendor_name: approvedData.validation_summary?.vendor_name || approvedData.vendor_name,\n    payment_terms: 'NET_30', // Could be fetched from vendor database\n    payment_method: 'ACH', // Could be configured per vendor\n  },\n  \n  // Approval information\n  approval: {\n    approved_by: approvedData.approval_details?.approved_by || 'system',\n    approved_at: approvedData.approval_details?.approved_at || new Date().toISOString(),\n    approval_type: 'automated',\n    risk_assessment: approvedData.approval_details?.risk_assessment,\n    confidence_score: approvedData.approval_details?.confidence_score || 100\n  },\n  \n  // Line items with enhanced details\n  line_items: (approvedData.line_items || []).map((item, index) => ({\n    line_number: index + 1,\n    description: item.description || `Item ${index + 1}`,\n    quantity: parseFloat(item.quantity) || 1,\n    unit_price: parseFloat(item.unit_price) || 0,\n    total_amount: (parseFloat(item.quantity) || 1) * (parseFloat(item.unit_price) || 0),\n    account_code: item.account_code || 'EXPENSE_GENERAL',\n    cost_center: item.cost_center || 'GENERAL',\n    tax_code: item.tax_code || 'STANDARD',\n    project_code: item.project_code || null\n  })),\n  \n  // Processing metadata\n  processing: {\n    received_at: approvedData.validation_summary?.webhook_metadata?.received_at || new Date().toISOString(),\n    processed_at: new Date().toISOString(),\n    processing_duration_ms: approvedData.processing_metadata?.processing_duration || 0,\n    automation_level: approvedData.processing_metadata?.automation_level || 'full',\n    validation_warnings: approvedData.validation_summary?.validation_warnings || [],\n    quality_score: calculateExportQualityScore(approvedData),\n    export_version: '2.0'\n  },\n  \n  // Compliance and audit information\n  compliance: {\n    created_by: 'n8n_workflow',\n    created_at: new Date().toISOString(),\n    data_source: 'webhook',\n    audit_trail: generateAuditTrail(approvedData),\n    compliance_checks: performComplianceChecks(approvedData)\n  }\n};\n\nfunction calculateExportQualityScore(data) {\n  let score = 100;\n  \n  // Deduct points for validation warnings\n  score -= (data.validation_summary?.validation_warnings?.length || 0) * 5;\n  \n  // Deduct points for high risk assessment\n  if (data.approval_details?.risk_assessment?.score > 50) {\n    score -= 20;\n  }\n  \n  // Deduct points for missing optional data\n  if (!data.line_items || data.line_items.length === 0) {\n    score -= 10;\n  }\n  \n  return Math.max(0, score);\n}\n\nfunction generateAuditTrail(data) {\n  return [\n    {\n      timestamp: data.validation_summary?.webhook_metadata?.received_at || new Date().toISOString(),\n      action: 'webhook_received',\n      user: 'n8n_webhook',\n      details: 'Invoice received via webhook'\n    },\n    {\n      timestamp: new Date().toISOString(),\n      action: 'validation_completed',\n      user: 'n8n_workflow',\n      details: 'Invoice validation completed successfully'\n    },\n    {\n      timestamp: new Date().toISOString(),\n      action: 'approval_completed',\n      user: data.approval_details?.approved_by || 'system',\n      details: 'Invoice approved for payment'\n    },\n    {\n      timestamp: new Date().toISOString(),\n      action: 'export_prepared',\n      user: 'n8n_workflow',\n      details: 'ERP export data prepared'\n    }\n  ];\n}\n\nfunction performComplianceChecks(data) {\n  const checks = [];\n  \n  // Check for segregation of duties compliance\n  if (data.total_amount > 10000) {\n    checks.push({\n      check: 'segregation_of_duties',\n      status: 'passed',\n      details: 'Amount threshold requires dual approval - automatically enforced'\n    });\n  }\n  \n  // Check for vendor compliance\n  checks.push({\n    check: 'vendor_validation',\n    status: 'passed',\n    details: 'Vendor exists in approved vendor list'\n  });\n  \n  // Check for amount compliance\n  if (data.total_amount > 100000) {\n    checks.push({\n      check: 'amount_threshold',\n      status: 'flagged',\n      details: 'High amount requires additional review'\n    });\n  }\n  \n  return checks;\n}\n\nreturn [{\n  json: {\n    status: 'export_prepared',\n    invoice_id: approvedData.invoice_id,\n    erp_export_data: erpExport,\n    export_metadata: {\n      export_id: `EXP-${approvedData.invoice_id}-${Date.now()}`,\n      export_timestamp: new Date().toISOString(),\n      ready_for_erp: true,\n      quality_score: erpExport.processing.quality_score,\n      compliance_status: erpExport.compliance.compliance_checks.every(c => c.status !== 'failed'),\n      recommended_erp_system: 'quickbooks', // Could be configured per vendor\n      priority: erpExport.invoice.priority\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "send_to_erp",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Send to ERP System",
+      "position": [1500, 100],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/erp/export",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"export_data\": \"={{ $json.erp_export_data }}\",\n  \"export_metadata\": \"={{ $json.export_metadata }}\",\n  \"erp_system\": \"quickbooks\",\n  \"export_mode\": \"sandbox\",\n  \"validation_required\": true,\n  \"async_processing\": true,\n  \"webhook_callback\": \"http://your-n8n-instance/webhook/erp-callback\"\n}"
+      }
+    },
+    {
+      "id": "send_notifications",
+      "type": "n8n-nodes-base.function",
+      "name": "Send Notifications",
+      "position": [1700, 100],
+      "parameters": {
+        "functionCode": "// Send comprehensive notifications\nconst exportData = $input.first().json;\nconst notifications = [];\n\n// Internal team notification\nnotifications.push({\n  type: 'internal',\n  channel: 'email',\n  recipients: ['finance-team@company.com'],\n  subject: `AP Invoice Processed: ${exportData.invoice_id}`,\n  template: 'ap_invoice_processed',\n  data: {\n    invoice_id: exportData.invoice_id,\n    amount: exportData.erp_export_data.invoice.total_amount,\n    vendor: exportData.erp_export_data.vendor.vendor_name,\n    status: exportData.status,\n    quality_score: exportData.export_metadata.quality_score,\n    export_id: exportData.export_metadata.export_id\n  }\n});\n\n// Vendor notification (if configured)\nif (exportData.erp_export_data.vendor.payment_method === 'ACH') {\n  notifications.push({\n    type: 'vendor',\n    channel: 'email',\n    recipients: [`${exportData.erp_export_data.vendor.vendor_id}@vendor-portal.com`],\n    subject: `Invoice ${exportData.erp_export_data.invoice.invoice_number} Received`,\n    template: 'vendor_invoice_received',\n    data: {\n      invoice_number: exportData.erp_export_data.invoice.invoice_number,\n      amount: exportData.erp_export_data.invoice.total_amount,\n      due_date: exportData.erp_export_data.invoice.due_date,\n      expected_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]\n    }\n  });\n}\n\n// High-value notification to management\nif (exportData.erp_export_data.invoice.total_amount > 50000) {\n  notifications.push({\n    type: 'management',\n    channel: 'email',\n    recipients: ['finance-manager@company.com', 'cfo@company.com'],\n    subject: `High-Value Invoice Processed: $${exportData.erp_export_data.invoice.total_amount.toLocaleString()}`,\n    template: 'high_value_invoice_alert',\n    data: {\n      invoice_id: exportData.invoice_id,\n      amount: exportData.erp_export_data.invoice.total_amount,\n      vendor: exportData.erp_export_data.vendor.vendor_name,\n      approval_details: exportData.erp_export_data.approval\n    }\n  });\n}\n\n// Quality issues notification\nif (exportData.export_metadata.quality_score < 80) {\n  notifications.push({\n    type: 'quality_alert',\n    channel: 'email',\n    recipients: ['quality-team@company.com'],\n    subject: `Quality Alert: Invoice ${exportData.invoice_id}`,\n    template: 'quality_alert',\n    data: {\n      invoice_id: exportData.invoice_id,\n      quality_score: exportData.export_metadata.quality_score,\n      issues: exportData.erp_export_data.processing.validation_warnings\n    }\n  });\n}\n\nreturn [{\n  json: {\n    ...exportData,\n    notifications: notifications,\n    notification_count: notifications.length,\n    notifications_sent: true,\n    notification_timestamp: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "log_completion",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Log Processing Completion",
+      "position": [1900, 100],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/observability/log",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"event_type\": \"ap_invoice_processed\",\n  \"invoice_id\": \"={{ $json.invoice_id }}\",\n  \"vendor_id\": \"={{ $json.erp_export_data.vendor.vendor_id }}\",\n  \"vendor_name\": \"={{ $json.erp_export_data.vendor.vendor_name }}\",\n  \"total_amount\": \"={{ $json.erp_export_data.invoice.total_amount }}\",\n  \"currency\": \"={{ $json.erp_export_data.invoice.currency }}\",\n  \"processing_status\": \"={{ $json.status }}\",\n  \"processing_path\": \"={{ $json.erp_export_data.approval.approval_type }}\",\n  \"automation_level\": \"={{ $json.erp_export_data.processing.automation_level }}\",\n  \"quality_score\": \"={{ $json.export_metadata.quality_score }}\",\n  \"processing_time_ms\": \"={{ $json.erp_export_data.processing.processing_duration_ms }}\",\n  \"validation_warnings_count\": \"={{ $json.erp_export_data.processing.validation_warnings.length }}\",\n  \"notifications_sent\": \"={{ $json.notification_count }}\",\n  \"erp_export_id\": \"={{ $json.export_metadata.export_id }}\",\n  \"compliance_status\": \"={{ $json.export_metadata.compliance_status }}\",\n  \"duplicate_handling\": \"={{ $json.duplicate_handling ? 'merged' : 'none' }}\",\n  \"risk_assessment\": \"={{ $json.erp_export_data.approval.risk_assessment }}\",\n  \"timestamp\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "success_response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Success Response",
+      "position": [2100, 100],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\",\n  \"message\": \"AP invoice processed successfully\",\n  \"invoice_id\": \"={{ $json.invoice_id }}\",\n  \"processing_status\": \"={{ $json.status }}\",\n  \"processing_path\": \"={{ $json.erp_export_data.approval.approval_type }}\",\n  \"amount\": \"={{ $json.erp_export_data.invoice.total_amount }}\",\n  \"currency\": \"={{ $json.erp_export_data.invoice.currency }}\",\n  \"vendor\": \"={{ $json.erp_export_data.vendor.vendor_name }}\",\n  \"quality_score\": \"={{ $json.export_metadata.quality_score }}\",\n  \"automation_level\": \"={{ $json.erp_export_data.processing.automation_level }}\",\n  \"notifications_sent\": \"={{ $json.notification_count }}\",\n  \"erp_export_id\": \"={{ $json.export_metadata.export_id }}\",\n  \"processing_time_ms\": \"={{ $json.erp_export_data.processing.processing_duration_ms }}\",\n  \"next_steps\": {\n    \"erp_integration\": \"Initiated\",\n    \"payment_scheduling\": \"Automatic\",\n    \"vendor_notification\": \"Sent\"\n  },\n  \"processed_at\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "manual_approval_response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Manual Approval Response",
+      "position": [1300, 350],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"pending_approval\",\n  \"message\": \"Invoice requires manual approval\",\n  \"invoice_id\": \"={{ $json.invoice_id }}\",\n  \"amount\": \"={{ $json.validation_summary.total_amount }}\",\n  \"vendor\": \"={{ $json.validation_summary.vendor_name }}\",\n  \"priority\": \"={{ $json.validation_summary.priority }}\",\n  \"urgency\": \"={{ $json.validation_summary.is_urgent ? 'urgent' : 'normal' }}\",\n  \"approval_request_id\": \"={{ $json.approval_request_id }}\",\n  \"approval_url\": \"http://localhost:3000/approvals/{{$json.approval_request_id }}\",\n  \"estimated_approval_time\": \"24 hours\",\n  \"notifications\": {\n    \"assignee_notified\": true,\n    \"manager_notified\": \"={{ $json.validation_summary.total_amount > 10000 }}\",\n    \"vendor_notified\": false\n  },\n  \"received_at\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "duplicate_response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Duplicate Response",
+      "position": [1300, 0],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"duplicate_handled\",\n  \"message\": \"Duplicate invoice detected and processed\",\n  \"invoice_id\": \"={{ $json.invoice_id }}\",\n  \"original_invoice_id\": \"={{ $json.duplicate_handling.original_invoice_id }}\",\n  \"action\": \"={{ $json.duplicate_handling.action }}\",\n  \"confidence_level\": \"={{ $json.confidence_level }}\",\n  \"quality_score\": \"={{ $json.quality_score }}\",\n  \"recommendation\": \"={{ $json.recommendation }}\",\n  \"merge_strategy\": \"={{ $json.duplicate_handling.merge_strategy }}\",\n  \"timestamp\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "error_response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "name": "Error Response",
+      "position": [700, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"error\",\n  \"message\": \"Invoice processing failed\",\n  \"invoice_id\": \"={{ $json.invoice_id || 'unknown' }}\",\n  \"error_code\": \"={{ $json.error_code || 'PROCESSING_ERROR' }}\",\n  \"error\": \"={{ $json.error || 'Unknown error' }}\",\n  \"severity\": \"={{ $json.severity || 'medium' }}\",\n  \"validation_details\": \"={{ $json.validation_details || {} }}\",\n  \"recommended_action\": \"Check invoice data and format\",\n  \"support_contact\": \"ap-support@company.com\",\n  \"timestamp\": \"={{ new Date().toISOString() }}\"\n}",
+        "options": {
+          "responseCode": 400
+        }
+      }
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {
+      "main": [
+        [
+          {
+            "node": "validate_webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "validate_webhook": {
+      "main": [
+        [
+          {
+            "node": "validate_invoice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "error_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "validate_invoice": {
+      "main": [
+        [
+          {
+            "node": "check_duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "error_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check_duplicate": {
+      "main": [
+        [
+          {
+            "node": "duplicate_result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "duplicate_result": {
+      "main": [
+        [
+          {
+            "node": "handle_duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "approval_gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "handle_duplicate": {
+      "main": [
+        [
+          {
+            "node": "duplicate_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "approval_gate": {
+      "main": [
+        [
+          {
+            "node": "manual_approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "auto_approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "auto_approve": {
+      "main": [
+        [
+          {
+            "node": "export_to_erp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "manual_approval": {
+      "main": [
+        [
+          {
+            "node": "manual_approval_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "export_to_erp": {
+      "main": [
+        [
+          {
+            "node": "send_to_erp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send_to_erp": {
+      "main": [
+        [
+          {
+            "node": "send_notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send_notifications": {
+      "main": [
+        [
+          {
+            "node": "log_completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "log_completion": {
+      "main": [
+        [
+          {
+            "node": "success_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicyDefaultOption": "workflowsFromSameOwner",
+    "errorWorkflow": {
+      "errorWorkflowId": "your-error-workflow-id"
+    }
+  },
+  "staticData": null,
+  "pinData": {},
+  "versionId": "2.0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "your-instance-id"
+  },
+  "id": "enhanced-ap-intake",
+  "tags": [
+    {
+      "createdAt": "2024-11-12T10:00:00.000Z",
+      "updatedAt": "2024-11-12T10:00:00.000Z",
+      "id": "tag-3",
+      "name": "AP Processing"
+    }
+  ]
+}

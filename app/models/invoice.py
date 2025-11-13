@@ -90,6 +90,8 @@ class Invoice(Base, UUIDMixin, TimestampMixin):
     validations = relationship("Validation", back_populates="invoice", cascade="all, delete-orphan")
     exceptions = relationship("Exception", back_populates="invoice", cascade="all, delete-orphan")
     staged_exports = relationship("StagedExport", back_populates="invoice", cascade="all, delete-orphan")
+    dlq_entries = relationship("DeadLetterQueue", back_populates="invoice", cascade="all, delete-orphan")
+    idempotency_records = relationship("IdempotencyRecord", back_populates="invoice")
 
     def __repr__(self):
         return f"<Invoice(id={self.id}, vendor_id={self.vendor_id}, status={self.status})>"

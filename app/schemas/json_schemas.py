@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import jsonschema
 
 
@@ -48,8 +48,7 @@ class BaseSchema(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     description: Optional[str] = Field(None, description="Schema description")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 # Core Schema Definitions

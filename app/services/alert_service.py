@@ -431,7 +431,7 @@ class AlertService:
                         "timeout_minutes": 10,
                         "channels": [NotificationChannel.EMAIL, NotificationChannel.SLACK],
                         "recipients": ["ap_operations_team", "product_manager"],
-                        message="Business process impact detected"
+                        "message": "Business process impact detected",
                     },
                     {
                         "level": 2,

@@ -11,6 +11,7 @@ from sqlalchemy import (
     Column, String, Text, Integer, Float, Boolean, DateTime, JSON, ForeignKey,
     Index, UniqueConstraint, CheckConstraint
 )
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import relationship
 
@@ -60,7 +61,7 @@ class WeeklyReport(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "weekly_reports"
 
     # Report metadata
-    report_type = Column(Enum(ReportType), default=ReportType.WEEKLY, nullable=False)
+    report_type = Column(SQLEnum(ReportType), default=ReportType.WEEKLY, nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
 
@@ -69,7 +70,7 @@ class WeeklyReport(Base, UUIDMixin, TimestampMixin):
     week_end = Column(DateTime(timezone=True), nullable=False, index=True)
 
     # Generation status
-    status = Column(Enum(ReportStatus), default=ReportStatus.PENDING, nullable=False, index=True)
+    status = Column(SQLEnum(ReportStatus), default=ReportStatus.PENDING, nullable=False, index=True)
     generated_at = Column(DateTime(timezone=True), nullable=True)
     generation_duration_seconds = Column(Integer, nullable=True)
 
@@ -119,7 +120,7 @@ class ReportDelivery(Base, UUIDMixin, TimestampMixin):
     delivery_method = Column(String(50), default="email", nullable=False)
 
     # Delivery status
-    status = Column(Enum(DeliveryStatus), default=DeliveryStatus.PENDING, nullable=False, index=True)
+    status = Column(SQLEnum(DeliveryStatus), default=DeliveryStatus.PENDING, nullable=False, index=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     delivery_attempts = Column(Integer, default=0, nullable=False)
 
@@ -161,7 +162,7 @@ class SLOMetric(Base, UUIDMixin, TimestampMixin):
 
     # Metric identification
     slo_name = Column(String(255), nullable=False, index=True)
-    slo_category = Column(Enum(SLOCategory), nullable=False, index=True)
+    slo_category = Column(SQLEnum(SLOCategory), nullable=False, index=True)
 
     # Time period
     week_start = Column(DateTime(timezone=True), nullable=False, index=True)
@@ -400,7 +401,7 @@ class ReportSubscription(Base, UUIDMixin, TimestampMixin):
     user_email = Column(String(255), nullable=False, index=True)
 
     # Subscription preferences
-    report_type = Column(Enum(ReportType), default=ReportType.WEEKLY, nullable=False)
+    report_type = Column(SQLEnum(ReportType), default=ReportType.WEEKLY, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
 
     # Delivery preferences
@@ -452,7 +453,7 @@ class ReportTemplate(Base, UUIDMixin, TimestampMixin):
     description = Column(Text, nullable=True)
 
     # Template configuration
-    template_type = Column(Enum(ReportType), nullable=False)
+    template_type = Column(SQLEnum(ReportType), nullable=False)
     layout_json = Column(JSON, nullable=False)  # Template layout structure
     sections_json = Column(JSON, nullable=False)  # Section configurations
     styling_json = Column(JSON, nullable=True)  # Custom styling

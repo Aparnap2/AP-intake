@@ -518,3 +518,7 @@ Message:
         except Exception as e:
             logger.error(f"Failed to send system alert: {e}")
             return False
+
+
+# Create a global instance for use across the application
+notification_service = NotificationService()

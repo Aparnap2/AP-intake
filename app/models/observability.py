@@ -95,7 +95,7 @@ class AlertRule(Base):
     # State
     enabled = Column(Boolean, default=True)
     tags = Column(JSON, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    alert_metadata = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -140,7 +140,7 @@ class Alert(Base):
 
     # Context and metadata
     context = Column(JSON, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    alert_metadata = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -198,7 +198,7 @@ class RunbookExecution(Base):
 
     # Metadata
     triggered_by = Column(String(255), nullable=True)
-    metadata = Column(JSON, nullable=True)
+    alert_metadata = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -250,7 +250,7 @@ class RunbookStepExecution(Base):
     parallel = Column(Boolean, default=False)
 
     # Metadata
-    metadata = Column(JSON, nullable=True)
+    alert_metadata = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -331,7 +331,7 @@ class PerformanceMetric(Base):
     confidence_score = Column(Float, nullable=True)
 
     # Additional metadata
-    metadata = Column(JSON, nullable=True)
+    alert_metadata = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -382,7 +382,7 @@ class AnomalyDetection(Base):
     acknowledged_by = Column(String(255), nullable=True)
 
     # Metadata
-    metadata = Column(JSON, nullable=True)
+    alert_metadata = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -420,7 +420,7 @@ class AlertSuppression(Base):
     active = Column(Boolean, default=True)
 
     # Metadata
-    metadata = Column(JSON, nullable=True)
+    alert_metadata = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -461,7 +461,7 @@ class DashboardConfiguration(Base):
 
     # Metadata
     tags = Column(JSON, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    alert_metadata = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

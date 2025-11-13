@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from sqlalchemy import Column, String, DateTime, JSON, Float
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -249,14 +249,16 @@ class ARWorkflowStateModel(BaseModel):
     export_format: str = Field(default="json", description="Export format")
     export_ready: bool = Field(default=False, description="Whether export is ready")
 
-    @validator('invoice_type')
+    @field_validator('invoice_type')
+    @classmethod
     def validate_invoice_type(cls, v):
         """Validate that invoice type is 'ar'."""
         if v != InvoiceType.AR.value:
             raise ValueError(f"invoice_type must be '{InvoiceType.AR.value}' for ARWorkflowStateModel")
         return v
 
-    @validator('collection_priority')
+    @field_validator('collection_priority')
+    @classmethod
     def validate_collection_priority(cls, v):
         """Validate collection priority."""
         try:
@@ -264,7 +266,8 @@ class ARWorkflowStateModel(BaseModel):
         except ValueError:
             raise ValueError(f"Invalid collection priority: {v}. Must be one of {[p.value for p in CollectionPriority]}")
 
-    @validator('status')
+    @field_validator('status')
+    @classmethod
     def validate_status(cls, v):
         """Validate workflow status."""
         try:
@@ -272,7 +275,8 @@ class ARWorkflowStateModel(BaseModel):
         except ValueError:
             raise ValueError(f"Invalid status: {v}. Must be one of {[s.value for s in WorkflowStatus]}")
 
-    @validator('due_date')
+    @field_validator('due_date')
+    @classmethod
     def validate_due_date(cls, v):
         """Validate due date format."""
         if v is not None:
@@ -282,7 +286,8 @@ class ARWorkflowStateModel(BaseModel):
                 raise ValueError(f"Invalid due date format: {v}. Must be ISO format")
         return v
 
-    @validator('created_at', 'updated_at')
+    @field_validator('created_at', 'updated_at')
+    @classmethod
     def validate_timestamps(cls, v):
         """Validate timestamp format."""
         try:
@@ -374,9 +379,7 @@ class ARWorkflowStateModel(BaseModel):
             "working_capital_score": self.working_capital_score
         }
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
         validate_assignment = True
         extra = "allow"  # Allow additional fields for flexibility
 
@@ -440,14 +443,16 @@ class APWorkflowStateModel(BaseModel):
     export_format: str = Field(default="json", description="Export format")
     export_ready: bool = Field(default=False, description="Whether export is ready")
 
-    @validator('invoice_type')
+    @field_validator('invoice_type')
+    @classmethod
     def validate_invoice_type(cls, v):
         """Validate that invoice type is 'ap'."""
         if v != InvoiceType.AP.value:
             raise ValueError(f"invoice_type must be '{InvoiceType.AP.value}' for APWorkflowStateModel")
         return v
 
-    @validator('status')
+    @field_validator('status')
+    @classmethod
     def validate_status(cls, v):
         """Validate workflow status."""
         try:
@@ -455,7 +460,8 @@ class APWorkflowStateModel(BaseModel):
         except ValueError:
             raise ValueError(f"Invalid status: {v}. Must be one of {[s.value for s in WorkflowStatus]}")
 
-    @validator('created_at', 'updated_at')
+    @field_validator('created_at', 'updated_at')
+    @classmethod
     def validate_timestamps(cls, v):
         """Validate timestamp format."""
         try:
@@ -464,9 +470,7 @@ class APWorkflowStateModel(BaseModel):
             raise ValueError(f"Invalid timestamp format: {v}. Must be ISO format")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
         validate_assignment = True
         extra = "allow"  # Allow additional fields for flexibility
 
@@ -534,7 +538,7 @@ def merge_workflow_states(
 ) -> Union[ARWorkflowStateModel, APWorkflowStateModel]:
     """Merge update data into a workflow state."""
     # Create a copy of the state to avoid mutation
-    state_dict = base_state.dict()
+    state_dict = base_state.model_dump()
 
     # Update with new data
     state_dict.update(update_data)
@@ -552,7 +556,7 @@ def merge_workflow_states(
 # State serialization utilities
 def serialize_workflow_state(state: Union[ARWorkflowStateModel, APWorkflowStateModel]) -> Dict[str, Any]:
     """Serialize a workflow state to a dictionary."""
-    return state.dict()
+    return state.model_dump()
 
 
 def deserialize_workflow_state(

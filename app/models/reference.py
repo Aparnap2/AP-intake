@@ -61,7 +61,7 @@ class Vendor(Base, UUIDMixin, TimestampMixin):
 
     # Status and metadata
     active = Column(Boolean, nullable=False, default=True, index=True)
-    status = Column(Enum(VendorStatus), default=VendorStatus.ACTIVE, nullable=False)
+    status = Column(String(20), default="active", nullable=False)
 
     # Vendor-specific rules
     payment_terms_days = Column(String(10), nullable=True, default="30")
@@ -81,6 +81,7 @@ class Vendor(Base, UUIDMixin, TimestampMixin):
     # Relationships
     invoices = relationship("Invoice", back_populates="vendor")
     purchase_orders = relationship("PurchaseOrder", back_populates="vendor")
+    ingestion_jobs = relationship("IngestionJob", back_populates="vendor")
 
     def __repr__(self):
         return f"<Vendor(id={self.id}, name={self.name}, status={self.status})>"

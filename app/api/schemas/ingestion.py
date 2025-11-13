@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 
 # Base schemas
@@ -116,8 +116,7 @@ class IngestionResponse(IngestionBase):
     signed_urls: Optional[List[Dict[str, Any]]] = Field(None, description="Signed URLs")
     estimated_processing_time_seconds: int = Field(0, description="Estimated processing time")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class IngestionListResponse(BaseModel):
@@ -145,8 +144,7 @@ class DuplicateRecordResponse(BaseModel):
     status: str = Field(..., description="Duplicate status")
     created_at: datetime = Field(..., description="Creation timestamp")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DuplicateGroupResponse(BaseModel):
@@ -172,8 +170,7 @@ class SignedUrlResponse(BaseModel):
     mime_type: str = Field(..., description="MIME type")
     security_features: SecurityFeatures = Field(..., description="Security features")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BatchSignedUrlResponse(BaseModel):
@@ -262,8 +259,7 @@ class DeduplicationRuleResponse(DeduplicationRuleBase):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CleanupStatsResponse(BaseModel):

@@ -11,8 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 
 from app.api.schemas import VendorCreate, VendorResponse, VendorListResponse
-from app.db.session import get_db
+from app.api.api_v1.deps import get_async_session
 from app.models.reference import Vendor, VendorStatus
+from app.core.validation import validate_search_query, ValidationError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -21,7 +22,7 @@ router = APIRouter()
 @router.post("/", response_model=VendorResponse)
 async def create_vendor(
     vendor: VendorCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ):
     """Create a new vendor."""
     try:
@@ -50,7 +51,7 @@ async def create_vendor(
         await db.refresh(db_vendor)
 
         logger.info(f"Created vendor {db_vendor.id}")
-        return VendorResponse.from_orm(db_vendor)
+        return VendorResponse.model_validate(db_vendor)
 
     except HTTPException:
         raise
@@ -66,7 +67,7 @@ async def list_vendors(
     limit: int = Query(100, ge=1, le=1000),
     status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ):
     """List vendors with optional filtering."""
     try:
@@ -75,14 +76,12 @@ async def list_vendors(
 
         # Apply filters
         if status:
-            try:
-                status_enum = VendorStatus[status.upper()]
-                conditions.append(Vendor.status == status_enum)
-            except KeyError:
-                raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+            conditions.append(Vendor.status == status.lower())
 
         if search:
-            conditions.append(Vendor.name.ilike(f"%{search}%"))
+            # Validate and sanitize search input
+            sanitized_search = validate_search_query(search)
+            conditions.append(Vendor.name.ilike(f"%{sanitized_search}%"))
 
         # Build the query
         base_query = select(Vendor)
@@ -103,7 +102,7 @@ async def list_vendors(
         vendors = result.scalars().all()
 
         return VendorListResponse(
-            vendors=[VendorResponse.from_orm(vendor) for vendor in vendors],
+            vendors=[VendorResponse.model_validate(vendor) for vendor in vendors],
             total=total,
             skip=skip,
             limit=limit,
@@ -111,6 +110,9 @@ async def list_vendors(
 
     except HTTPException:
         raise
+    except ValidationError as e:
+        # Re-raise validation errors with proper status
+        raise e
     except Exception as e:
         logger.error(f"Error listing vendors: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -119,7 +121,7 @@ async def list_vendors(
 @router.get("/{vendor_id}", response_model=VendorResponse)
 async def get_vendor(
     vendor_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ):
     """Get vendor details by ID."""
     try:
@@ -132,7 +134,7 @@ async def get_vendor(
         if not vendor:
             raise HTTPException(status_code=404, detail="Vendor not found")
 
-        return VendorResponse.from_orm(vendor)
+        return VendorResponse.model_validate(vendor)
 
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid vendor_id format")

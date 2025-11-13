@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc, func
 
-from app.api.deps import get_async_session, get_current_user
+from app.api.api_v1.deps import get_async_session, get_current_user
 from app.models.observability import (
     Alert, RunbookExecution, RunbookStepExecution, SystemHealthCheck,
     PerformanceMetric, AnomalyDetection, AlertSuppression
@@ -576,8 +576,8 @@ async def cancel_runbook_execution(
 @router.post("/emergency-drill")
 async def execute_emergency_drill(
     drill_type: str,
-    execution_context: Optional[Dict[str, Any]] = None,
     background_tasks: BackgroundTasks,
+    execution_context: Optional[Dict[str, Any]] = None,
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Execute an emergency drill."""

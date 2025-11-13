@@ -1,0 +1,53 @@
+{
+  "session_id": "2d57295a-8233-4475-b525-731b01fc26cf",
+  "timestamp": "2025-11-13T05:30:49.531643",
+  "execution_time_seconds": 10.332672,
+  "summary": {
+    "total_tests": 22,
+    "passed": 21,
+    "failed": 1,
+    "success_rate": 95.45454545454545
+  },
+  "test_results": {
+    "connectivity": {
+      "passed": 4,
+      "failed": 1,
+      "errors": []
+    },
+    "file_upload": {
+      "passed": 3,
+      "failed": 0,
+      "errors": []
+    },
+    "invoice_processing": {
+      "passed": 3,
+      "failed": 0,
+      "errors": []
+    },
+    "validation": {
+      "passed": 3,
+      "failed": 0,
+      "errors": []
+    },
+    "exceptions": {
+      "passed": 0,
+      "failed": 0,
+      "errors": []
+    },
+    "exports": {
+      "passed": 2,
+      "failed": 0,
+      "errors": []
+    },
+    "monitoring": {
+      "passed": 6,
+      "failed": 0,
+      "errors": []
+    }
+  },
+  "production_readiness": {
+    "critical_score": 75.0,
+    "readiness_status": "\ud83d\udfe1 CONDITIONALLY READY",
+    "recommendation": "Core systems mostly healthy with minor improvements needed"
+  }
+}

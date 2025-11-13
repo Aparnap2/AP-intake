@@ -31,6 +31,17 @@ class ValidationException(APIntakeException):
         )
 
 
+class ConflictException(APIntakeException):
+    """Raised when a conflict occurs, such as duplicate operations."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="CONFLICT_ERROR",
+            details=details,
+        )
+
+
 class ExtractionException(APIntakeException):
     """Raised when document extraction fails."""
 
@@ -97,6 +108,17 @@ class EmailIngestionException(EmailException):
         )
 
 
+class NotificationException(APIntakeException):
+    """Raised when notification operations fail."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="NOTIFICATION_ERROR",
+            details=details,
+        )
+
+
 class ConfigurationException(APIntakeException):
     """Raised when configuration is invalid."""
 
@@ -104,5 +126,82 @@ class ConfigurationException(APIntakeException):
         super().__init__(
             message=message,
             error_code="CONFIGURATION_ERROR",
+            details=details,
+        )
+
+
+class IngestionException(APIntakeException):
+    """Raised when file ingestion fails."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="INGESTION_ERROR",
+            details=details,
+        )
+
+
+class DeduplicationException(APIntakeException):
+    """Raised when deduplication operations fail."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="DEDUPLICATION_ERROR",
+            details=details,
+        )
+
+
+class ExternalServiceException(APIntakeException):
+    """Raised when external service operations fail."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="EXTERNAL_SERVICE_ERROR",
+            details=details,
+        )
+
+
+class DiffException(APIntakeException):
+    """Raised when diff operations fail."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="DIFF_ERROR",
+            details=details,
+        )
+
+
+class EvidenceHarnessException(APIntakeException):
+    """Raised when evidence harness operations fail."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="EVIDENCE_HARNESS_ERROR",
+            details=details,
+        )
+
+
+class ERPException(APIntakeException):
+    """Raised when ERP operations fail."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="ERP_ERROR",
+            details=details,
+        )
+
+
+class SecurityException(APIntakeException):
+    """Raised when security validation fails."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="SECURITY_ERROR",
             details=details,
         )

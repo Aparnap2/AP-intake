@@ -12,7 +12,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_current_user
+from app.api.api_v1.deps import get_async_session, get_current_active_user, get_current_user
 from app.models.ar_invoice import Customer, ARInvoice, PaymentStatus, CollectionPriority
 from app.models.user import User
 from app.schemas.ar_schemas import (
@@ -48,13 +48,13 @@ metrics_service = MetricsService()
 @router.post("/customers", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
 async def create_customer(
     customer_data: CustomerCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new AR customer."""
     try:
         # Validate customer data
-        validation_result = await ar_validation_service.validate_customer(db, customer_data.dict())
+        validation_result = await ar_validation_service.validate_customer(db, customer_data.model_dump())
         if not validation_result["passed"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -62,7 +62,7 @@ async def create_customer(
             )
 
         # Create customer
-        customer = await ar_service.create_customer(db, customer_data.dict())
+        customer = await ar_service.create_customer(db, customer_data.model_dump())
 
         # Calculate derived fields
         outstanding_balance = await customer.get_outstanding_balance(db)
@@ -86,7 +86,7 @@ async def get_customers(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     active_only: bool = Query(True),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get list of AR customers."""
@@ -122,7 +122,7 @@ async def get_customers(
 @router.get("/customers/{customer_id}", response_model=CustomerResponse)
 async def get_customer(
     customer_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get a specific AR customer."""
@@ -160,7 +160,7 @@ async def get_customer(
 async def update_customer(
     customer_id: str,
     customer_update: CustomerUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Update an AR customer."""
@@ -205,7 +205,7 @@ async def update_customer(
 @router.delete("/customers/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_customer(
     customer_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Soft delete an AR customer."""
@@ -237,14 +237,14 @@ async def delete_customer(
 @router.post("/invoices", response_model=ARInvoiceResponse, status_code=status.HTTP_201_CREATED)
 async def create_ar_invoice(
     invoice_data: ARInvoiceCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new AR invoice."""
     try:
         # Validate invoice data
         validation_result = await ar_validation_service.validate_ar_invoice(
-            db, invoice_data.dict(), str(invoice_data.customer_id)
+            db, invoice_data.model_dump(), str(invoice_data.customer_id)
         )
         if not validation_result["passed"]:
             raise HTTPException(
@@ -253,7 +253,7 @@ async def create_ar_invoice(
             )
 
         # Create invoice
-        invoice = await ar_service.create_ar_invoice(db, invoice_data.dict())
+        invoice = await ar_service.create_ar_invoice(db, invoice_data.model_dump())
 
         # Add derived fields
         invoice.days_overdue = invoice.days_overdue()
@@ -276,7 +276,7 @@ async def get_ar_invoices(
     status: Optional[PaymentStatus] = Query(None),
     collection_priority: Optional[CollectionPriority] = Query(None),
     overdue_only: bool = Query(False),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get list of AR invoices with filtering."""
@@ -324,7 +324,7 @@ async def get_ar_invoices(
 @router.get("/invoices/{invoice_id}", response_model=ARInvoiceResponse)
 async def get_ar_invoice(
     invoice_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get a specific AR invoice."""
@@ -359,7 +359,7 @@ async def get_ar_invoice(
 async def update_ar_invoice(
     invoice_id: str,
     invoice_update: ARInvoiceUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Update an AR invoice."""
@@ -404,7 +404,7 @@ async def update_ar_invoice(
 async def apply_payment(
     invoice_id: str,
     payment_data: PaymentApply,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Apply payment to an AR invoice."""
@@ -431,7 +431,7 @@ async def apply_payment(
 @router.post("/payments/bulk", response_model=BulkPaymentApplicationResult)
 async def apply_bulk_payments(
     bulk_payment: BulkPaymentApplication,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Apply multiple payments in bulk."""
@@ -475,7 +475,7 @@ async def apply_bulk_payments(
 @router.get("/analytics/working-capital", response_model=WorkingCapitalSummary)
 async def get_working_capital_summary(
     customer_id: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get working capital summary for AR portfolio."""
@@ -495,7 +495,7 @@ async def get_working_capital_summary(
 async def get_collection_recommendations(
     customer_id: Optional[str] = Query(None),
     priority: Optional[CollectionPriority] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get collection recommendations for overdue invoices."""
@@ -519,7 +519,7 @@ async def get_collection_recommendations(
 @router.get("/analytics/early-payment-discounts", response_model=List[EarlyPaymentDiscountOpportunity])
 async def get_early_payment_discount_opportunities(
     customer_id: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get early payment discount opportunities."""
@@ -542,7 +542,7 @@ async def get_early_payment_discount_opportunities(
 @router.get("/analytics/optimization-score", response_model=WorkingCapitalOptimizationScore)
 async def get_working_capital_optimization_score(
     customer_id: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get working capital optimization score."""
@@ -561,7 +561,7 @@ async def get_working_capital_optimization_score(
 @router.get("/analytics/collection-efficiency", response_model=CollectionEfficiencyMetrics)
 async def get_collection_efficiency_metrics(
     customer_id: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get collection efficiency metrics."""
@@ -581,7 +581,7 @@ async def get_collection_efficiency_metrics(
 async def get_cash_flow_forecast(
     customer_id: Optional[str] = Query(None),
     weeks: int = Query(12, ge=1, le=52),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get cash flow forecast for AR invoices."""
@@ -621,7 +621,7 @@ async def get_cash_flow_forecast(
 @router.get("/customers/{customer_id}/outstanding", response_model=CustomerOutstandingInvoices)
 async def get_customer_outstanding_invoices(
     customer_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user)
 ):
     """Get outstanding invoices for a customer."""

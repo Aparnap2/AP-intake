@@ -648,3 +648,341 @@ class WorkingCapitalAlert(Base, UUIDMixin, TimestampMixin):
         """Escalate alert to higher severity."""
         self.severity = new_severity
         # Could trigger additional notifications here
+
+
+class DuplicateType(str, enum.Enum):
+    """Types of duplicates for evidence harness."""
+
+    EXACT = "exact"
+    AMOUNT_SHIFT = "amount_shift"
+    DATE_SHIFT = "date_shift"
+    FORMAT_CHANGE = "format_change"
+    VENDOR_VARIATION = "vendor_variation"
+    INVOICE_NUMBER_VARIATION = "invoice_number_variation"
+
+
+class ExceptionScenarioType(str, enum.Enum):
+    """Types of exception scenarios for evidence harness."""
+
+    MATH_ERROR = "math_error"
+    DUPLICATE_PAYMENT = "duplicate_payment"
+    MATCHING_FAILURE = "matching_failure"
+    VENDOR_POLICY_VIOLATION = "vendor_policy_violation"
+    DATA_QUALITY = "data_quality"
+    MISSING_REQUIRED_FIELD = "missing_required_field"
+    INVALID_FORMAT = "invalid_format"
+    BUSINESS_RULE_VIOLATION = "business_rule_violation"
+
+
+class SeedDuplicateRecord(Base, UUIDMixin, TimestampMixin):
+    """Seed duplicate records for training and testing."""
+
+    __tablename__ = "seed_duplicate_records"
+
+    # Base invoice reference
+    base_invoice_id = Column(UUID(as_uuid=True), ForeignKey("ar_invoices.id"), nullable=False, index=True)
+    duplicate_invoice_id = Column(UUID(as_uuid=True), ForeignKey("ar_invoices.id"), nullable=False, index=True)
+
+    # Duplicate classification
+    duplicate_type = Column(Enum(DuplicateType), nullable=False, index=True)
+    confidence_score = Column(Numeric(5, 2), nullable=True)  # 0-100 confidence
+
+    # Duplicate variations
+    variation_details = Column(JSON, nullable=True)  # Specific changes made
+    similarity_score = Column(Numeric(5, 2), nullable=True)  # 0-100 similarity
+    working_capital_impact = Column(Numeric(15, 2), nullable=False, default=Decimal('0.00'))
+
+    # Detection metadata
+    detection_method = Column(String(50), nullable=True)  # hash, fuzzy, business_rules, etc.
+    detection_confidence = Column(Numeric(5, 2), nullable=True)
+    false_positive_risk = Column(Numeric(5, 2), nullable=True)
+
+    # Training data quality
+    is_labeled = Column(Boolean, nullable=False, default=False)
+    labeled_by = Column(String(100), nullable=True)
+    labeled_at = Column(DateTime(timezone=True), nullable=True)
+    validation_status = Column(String(20), nullable=False, default="pending")  # pending, validated, rejected
+
+    # Scenario metadata
+    scenario_name = Column(String(200), nullable=True)
+    scenario_description = Column(Text, nullable=True)
+    difficulty_level = Column(String(20), nullable=True)  # easy, medium, hard
+    business_context = Column(JSON, nullable=True)
+
+    # Performance indexes
+    __table_args__ = (
+        Index('idx_seed_duplicate_base', 'base_invoice_id', 'duplicate_type'),
+        Index('idx_seed_duplicate_confidence', 'confidence_score', 'duplicate_type'),
+        Index('idx_seed_duplicate_impact', 'working_capital_impact', 'duplicate_type'),
+        Index('idx_seed_duplicate_validation', 'validation_status', 'is_labeled'),
+        CheckConstraint("confidence_score >= 0 AND confidence_score <= 100", name='check_duplicate_confidence_range'),
+        CheckConstraint("similarity_score >= 0 AND similarity_score <= 100", name='check_similarity_range'),
+        CheckConstraint("detection_confidence >= 0 AND detection_confidence <= 100", name='check_detection_confidence_range'),
+        CheckConstraint("false_positive_risk >= 0 AND false_positive_risk <= 100", name='check_false_positive_risk_range'),
+    )
+
+    # Relationships
+    base_invoice = relationship("ARInvoice", foreign_keys=[base_invoice_id], backref="base_duplicates")
+    duplicate_invoice = relationship("ARInvoice", foreign_keys=[duplicate_invoice_id], backref="duplicate_instances")
+
+    def __repr__(self):
+        return f"<SeedDuplicateRecord(base={self.base_invoice_id}, type={self.duplicate_type}, impact=${self.working_capital_impact})>"
+
+    def calculate_working_capital_impact(self, base_amount: Decimal, duplicate_amount: Decimal):
+        """Calculate working capital impact of potential duplicate payment."""
+        impact = abs(duplicate_amount - base_amount)
+        self.working_capital_impact = impact
+        return impact
+
+    def validate_duplicate(self, validator: str, is_valid_duplicate: bool, notes: str = None):
+        """Validate duplicate record."""
+        self.is_labeled = True
+        self.labeled_by = validator
+        self.labeled_at = datetime.utcnow()
+        self.validation_status = "validated" if is_valid_duplicate else "rejected"
+
+        if notes:
+            if not self.business_context:
+                self.business_context = {}
+            self.business_context['validation_notes'] = notes
+
+
+class SeedExceptionRecord(Base, UUIDMixin, TimestampMixin):
+    """Seed exception records for training and testing."""
+
+    __tablename__ = "seed_exception_records"
+
+    # Invoice reference
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("ar_invoices.id"), nullable=False, index=True)
+
+    # Exception classification
+    exception_type = Column(Enum(ExceptionScenarioType), nullable=False, index=True)
+    severity = Column(String(20), nullable=False, index=True)  # low, medium, high, critical
+
+    # Exception details
+    exception_details = Column(JSON, nullable=False)  # Detailed exception information
+    detection_rules = Column(JSON, nullable=True)  # Rules that triggered detection
+    business_impact = Column(JSON, nullable=True)  # Business impact assessment
+
+    # Working capital impact
+    financial_impact = Column(Numeric(15, 2), nullable=False, default=Decimal('0.00'))
+    resolution_cost = Column(Numeric(15, 2), nullable=True)
+    opportunity_cost = Column(Numeric(15, 2), nullable=True)
+
+    # CFO-relevant insights
+    cfo_insights = Column(JSON, nullable=True)  # Executive-level insights
+    risk_assessment = Column(JSON, nullable=True)  # Financial risk assessment
+    working_capital_implications = Column(JSON, nullable=True)  # WC implications
+
+    # Training data quality
+    is_labeled = Column(Boolean, nullable=False, default=False)
+    labeled_by = Column(String(100), nullable=True)
+    labeled_at = Column(DateTime(timezone=True), nullable=True)
+    validation_status = Column(String(20), nullable=False, default="pending")  # pending, validated, rejected
+
+    # Scenario metadata
+    scenario_name = Column(String(200), nullable=True)
+    scenario_description = Column(Text, nullable=True)
+    occurrence_frequency = Column(String(20), nullable=True)  # rare, occasional, frequent
+    resolution_complexity = Column(String(20), nullable=True)  # simple, moderate, complex
+
+    # Performance tracking
+    resolution_time_hours = Column(Integer, nullable=True)
+    resolution_success_rate = Column(Numeric(5, 2), nullable=True)  # 0-100 success rate
+    repeat_occurrence = Column(Boolean, nullable=False, default=False)
+
+    # Performance indexes
+    __table_args__ = (
+        Index('idx_seed_exception_invoice', 'invoice_id', 'exception_type'),
+        Index('idx_seed_exception_severity', 'severity', 'validation_status'),
+        Index('idx_seed_exception_impact', 'financial_impact', 'exception_type'),
+        Index('idx_seed_exception_frequency', 'occurrence_frequency', 'resolution_complexity'),
+        CheckConstraint("financial_impact >= -1000000", name='check_financial_impact_range'),
+        CheckConstraint("resolution_cost >= 0", name='check_resolution_cost_positive'),
+        CheckConstraint("opportunity_cost >= 0", name='check_opportunity_cost_positive'),
+        CheckConstraint("resolution_time_hours >= 0", name='check_resolution_time_positive'),
+        CheckConstraint("resolution_success_rate >= 0 AND resolution_success_rate <= 100", name='check_success_rate_range'),
+    )
+
+    # Relationships
+    invoice = relationship("ARInvoice", backref="seed_exceptions")
+
+    def __repr__(self):
+        return f"<SeedExceptionRecord(invoice={self.invoice_id}, type={self.exception_type}, impact=${self.financial_impact})>"
+
+    def calculate_total_impact(self) -> Decimal:
+        """Calculate total financial impact including resolution and opportunity costs."""
+        total = abs(self.financial_impact)
+        if self.resolution_cost:
+            total += self.resolution_cost
+        if self.opportunity_cost:
+            total += self.opportunity_cost
+        return total
+
+    def generate_cfo_insights(self):
+        """Generate CFO-relevant insights for the exception."""
+        insights = {
+            'financial_summary': {
+                'direct_impact': float(abs(self.financial_impact)),
+                'total_cost': float(self.calculate_total_impact()),
+                'working_capital_tied_up': float(abs(self.financial_impact))
+            },
+            'risk_assessment': {
+                'severity': self.severity,
+                'frequency': self.occurrence_frequency,
+                'complexity': self.resolution_complexity,
+                'repeat_issue': self.repeat_occurrence
+            },
+            'operational_impact': {
+                'resolution_time_hours': self.resolution_time_hours,
+                'success_rate': float(self.resolution_success_rate) if self.resolution_success_rate else None,
+                'department_responsibility': self._get_responsible_department()
+            },
+            'strategic_recommendations': self._generate_strategic_recommendations()
+        }
+
+        self.cfo_insights = insights
+        return insights
+
+    def _get_responsible_department(self) -> str:
+        """Determine responsible department based on exception type."""
+        department_mapping = {
+            ExceptionScenarioType.MATH_ERROR: "Finance",
+            ExceptionScenarioType.DUPLICATE_PAYMENT: "AP Operations",
+            ExceptionScenarioType.MATCHING_FAILURE: "Procurement",
+            ExceptionScenarioType.VENDOR_POLICY_VIOLATION: "Vendor Management",
+            ExceptionScenarioType.DATA_QUALITY: "Data Management",
+            ExceptionScenarioType.MISSING_REQUIRED_FIELD: "AP Operations",
+            ExceptionScenarioType.INVALID_FORMAT: "Technical Support",
+            ExceptionScenarioType.BUSINESS_RULE_VIOLATION: "Compliance"
+        }
+        return department_mapping.get(self.exception_type, "Unknown")
+
+    def _generate_strategic_recommendations(self) -> List[str]:
+        """Generate strategic recommendations based on exception type."""
+        recommendations = {
+            ExceptionScenarioType.MATH_ERROR: [
+                "Implement automated calculation validation",
+                "Add pre-processing verification checks",
+                "Train staff on calculation verification"
+            ],
+            ExceptionScenarioType.DUPLICATE_PAYMENT: [
+                "Enhance duplicate detection algorithms",
+                "Implement real-time duplicate checking",
+                "Establish vendor portal for duplicate verification"
+            ],
+            ExceptionScenarioType.MATCHING_FAILURE: [
+                "Improve PO matching logic",
+                "Implement three-way matching automation",
+                "Establish vendor communication protocols"
+            ],
+            ExceptionScenarioType.VENDOR_POLICY_VIOLATION: [
+                "Update vendor onboarding procedures",
+                "Implement policy compliance checks",
+                "Regular vendor policy reviews"
+            ],
+            ExceptionScenarioType.DATA_QUALITY: [
+                "Implement data quality monitoring",
+                "Add data validation rules",
+                "Regular data cleansing procedures"
+            ]
+        }
+        return recommendations.get(self.exception_type, ["Review and improve current processes"])
+
+    def validate_exception(self, validator: str, is_valid_exception: bool, resolution_cost: Decimal = None, notes: str = None):
+        """Validate exception record."""
+        self.is_labeled = True
+        self.labeled_by = validator
+        self.labeled_at = datetime.utcnow()
+        self.validation_status = "validated" if is_valid_exception else "rejected"
+
+        if resolution_cost:
+            self.resolution_cost = resolution_cost
+
+        if notes:
+            if not self.business_impact:
+                self.business_impact = {}
+            self.business_impact['validation_notes'] = notes
+
+        # Regenerate CFO insights with updated information
+        self.generate_cfo_insights()
+
+
+class EvidenceHarnessJob(Base, UUIDMixin, TimestampMixin):
+    """Evidence harness generation job tracking."""
+
+    __tablename__ = "evidence_harness_jobs"
+
+    # Job information
+    job_name = Column(String(200), nullable=False)
+    job_type = Column(String(50), nullable=False, index=True)  # duplicate_generation, exception_generation
+    status = Column(String(20), nullable=False, default="pending", index=True)  # pending, running, completed, failed
+
+    # Job parameters
+    target_count = Column(Integer, nullable=False)
+    parameters = Column(JSON, nullable=True)  # Generation parameters
+
+    # Job results
+    generated_count = Column(Integer, nullable=False, default=0)
+    validated_count = Column(Integer, nullable=False, default=0)
+    failed_count = Column(Integer, nullable=False, default=0)
+
+    # Quality metrics
+    average_quality_score = Column(Numeric(5, 2), nullable=True)  # 0-100 average quality
+    diversity_score = Column(Numeric(5, 2), nullable=True)  # Scenario diversity measure
+    coverage_score = Column(Numeric(5, 2), nullable=True)  # Coverage of scenario types
+
+    # Execution tracking
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    execution_time_seconds = Column(Integer, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    # Performance indexes
+    __table_args__ = (
+        Index('idx_harness_job_type_status', 'job_type', 'status'),
+        Index('idx_harness_job_quality', 'average_quality_score', 'status'),
+        Index('idx_harness_job_coverage', 'coverage_score', 'job_type'),
+        CheckConstraint("target_count >= 0", name='check_target_count_positive'),
+        CheckConstraint("generated_count >= 0", name='check_generated_count_positive'),
+        CheckConstraint("validated_count >= 0", name='check_validated_count_positive'),
+        CheckConstraint("failed_count >= 0", name='check_failed_count_positive'),
+        CheckConstraint("average_quality_score >= 0 AND average_quality_score <= 100", name='check_avg_quality_range'),
+        CheckConstraint("diversity_score >= 0 AND diversity_score <= 100", name='check_diversity_range'),
+        CheckConstraint("coverage_score >= 0 AND coverage_score <= 100", name='check_coverage_range'),
+        CheckConstraint("execution_time_seconds >= 0", name='check_execution_time_positive'),
+    )
+
+    def __repr__(self):
+        return f"<EvidenceHarnessJob(name={self.job_name}, type={self.job_type}, status={self.status})>"
+
+    def start_job(self):
+        """Mark job as started."""
+        self.status = "running"
+        self.started_at = datetime.utcnow()
+
+    def complete_job(self, success: bool = True, error_message: str = None):
+        """Mark job as completed."""
+        self.status = "completed" if success else "failed"
+        self.completed_at = datetime.utcnow()
+
+        if self.started_at:
+            self.execution_time_seconds = int((self.completed_at - self.started_at).total_seconds())
+
+        if error_message:
+            self.error_message = error_message
+
+    def update_progress(self, generated: int = None, validated: int = None, failed: int = None):
+        """Update job progress."""
+        if generated is not None:
+            self.generated_count = generated
+        if validated is not None:
+            self.validated_count = validated
+        if failed is not None:
+            self.failed_count = failed
+
+    def calculate_completion_percentage(self) -> float:
+        """Calculate completion percentage."""
+        if self.target_count == 0:
+            return 0.0
+        return min(100.0, (self.generated_count / self.target_count) * 100)

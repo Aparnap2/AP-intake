@@ -1,0 +1,83 @@
+{
+  "session_id": "3d5ed531-c4f6-4107-9450-a843e195ba08",
+  "timestamp": "2025-11-10T13:03:20.784163",
+  "execution_time_seconds": 183.099208,
+  "summary": {
+    "total_tests": 29,
+    "passed": 1,
+    "failed": 28,
+    "success_rate": 3.4482758620689653
+  },
+  "test_results": {
+    "connectivity": {
+      "passed": 0,
+      "failed": 5,
+      "errors": [
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    "file_upload": {
+      "passed": 1,
+      "failed": 2,
+      "errors": [
+        "All connection attempts failed",
+        "All connection attempts failed"
+      ]
+    },
+    "invoice_processing": {
+      "passed": 0,
+      "failed": 4,
+      "errors": [
+        "All connection attempts failed",
+        "All connection attempts failed",
+        "All connection attempts failed"
+      ]
+    },
+    "validation": {
+      "passed": 0,
+      "failed": 3,
+      "errors": [
+        "All connection attempts failed"
+      ]
+    },
+    "exceptions": {
+      "passed": 0,
+      "failed": 4,
+      "errors": [
+        "All connection attempts failed",
+        "All connection attempts failed",
+        "All connection attempts failed"
+      ]
+    },
+    "exports": {
+      "passed": 0,
+      "failed": 4,
+      "errors": [
+        "All connection attempts failed",
+        "All connection attempts failed",
+        "All connection attempts failed"
+      ]
+    },
+    "monitoring": {
+      "passed": 0,
+      "failed": 6,
+      "errors": [
+        "All connection attempts failed",
+        "All connection attempts failed",
+        "All connection attempts failed",
+        "All connection attempts failed",
+        "All connection attempts failed",
+        "All connection attempts failed"
+      ]
+    }
+  },
+  "production_readiness": {
+    "critical_score": 0.0,
+    "readiness_status": "\u274c NOT READY",
+    "recommendation": "Critical issues must be resolved before production"
+  }
+}

@@ -359,6 +359,258 @@ class ExceptionMetricsRequest(BaseModel):
     group_by: Optional[str] = None  # "category", "severity", "reason_code", "day"
 
 
+# CFO Grade Enums and Classes
+
+class CFOGrade(str, Enum):
+    """CFO grade levels for executive prioritization."""
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class BusinessPriority(str, Enum):
+    """Business priority levels for resource allocation."""
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class FinancialMateriality(str, Enum):
+    """Financial materiality levels."""
+    MATERIAL = "material"
+    MODERATE = "moderate"
+    LOW = "low"
+
+
+class WorkingCapitalImpact(str, Enum):
+    """Working capital impact levels."""
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class RiskLevel(str, Enum):
+    """Business risk levels."""
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class ImpactTimeframe(str, Enum):
+    """Impact timeframe for business effects."""
+    IMMEDIATE = "immediate"
+    SHORT_TERM = "short_term"
+    MEDIUM_TERM = "medium_term"
+    LONG_TERM = "long_term"
+
+
+class ActionUrgency(str, Enum):
+    """Action urgency levels."""
+    URGENT = "urgent"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+# CFO Grade Enhanced Schemas
+
+class CFOGradeAssessment(BaseModel):
+    """CFO grade assessment for exceptions."""
+    cfo_grade: CFOGrade
+    business_priority: BusinessPriority
+    financial_materiality: FinancialMateriality
+    working_capital_impact: WorkingCapitalImpact
+    business_risk_level: RiskLevel
+    impact_timeframe: ImpactTimeframe
+    action_urgency: ActionUrgency
+    justification: str
+
+
+class FinancialImpact(BaseModel):
+    """Financial impact assessment."""
+    potential_loss: float
+    loss_percentage: float
+    confidence_level: str
+    impact_description: str
+    materiality: FinancialMateriality
+    working_capital_cost: float
+    resolution_cost_estimate: float
+
+
+class WorkingCapitalAnalysis(BaseModel):
+    """Working capital impact analysis."""
+    level: WorkingCapitalImpact
+    days_impacted: int
+    capital_tied_up: float
+    daily_wc_cost: float
+    total_wc_cost: float
+    impact_description: str
+
+
+class BusinessRiskAssessment(BaseModel):
+    """Business risk assessment."""
+    overall_risk_level: RiskLevel
+    financial_risk: str
+    operational_risk: str
+    compliance_risk: str
+    reputational_risk: str
+    strategic_risk: str
+
+
+class ExecutiveSummary(BaseModel):
+    """Executive summary for CFO review."""
+    one_line_summary: str
+    financial_exposure: Dict[str, Any]
+    strategic_implications: List[str]
+    immediate_action_required: Dict[str, Any]
+    board_level_visibility: Dict[str, Any]
+    confidence_level: str
+
+
+class RecommendedAction(BaseModel):
+    """Recommended action for exception resolution."""
+    action: str
+    urgency: ActionUrgency
+    responsible_party: str
+    timeline: str
+    resource_requirements: List[str]
+    expected_outcome: str
+
+
+class CFOInsight(BaseModel):
+    """Comprehensive CFO insight for exception."""
+    executive_summary: ExecutiveSummary
+    financial_impact: FinancialImpact
+    working_capital_analysis: WorkingCapitalAnalysis
+    risk_assessment: BusinessRiskAssessment
+    recommended_actions: List[RecommendedAction]
+    business_metrics: Dict[str, Any]
+    investment_justification: Dict[str, Any]
+
+
+# Enhanced Exception Schemas with CFO Fields
+
+class ExceptionCreateRequest(BaseModel):
+    """Request for manual exception creation."""
+    invoice_id: str
+    reason_code: ExceptionReasonCode
+    category: ExceptionCategory
+    severity: ExceptionSeverity
+    message: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+    auto_resolution_possible: bool = False
+    suggested_actions: List[ExceptionAction] = Field(default_factory=list)
+
+
+class CFOGradeExceptionCreate(BaseModel):
+    """Request for CFO-graded exception creation."""
+    invoice_id: str
+    reason_code: ExceptionReasonCode
+    category: ExceptionCategory
+    severity: ExceptionSeverity
+    message: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+    auto_resolution_possible: bool = False
+    suggested_actions: List[ExceptionAction] = Field(default_factory=list)
+    invoice_data: Optional[Dict[str, Any]] = None  # Additional invoice data for CFO analysis
+
+
+class ExceptionResponseWithCFO(ExceptionResponse):
+    """Exception response enhanced with CFO-grade fields."""
+    cfo_grade: Optional[CFOGrade] = None
+    business_priority: Optional[BusinessPriority] = None
+    financial_materiality: Optional[FinancialMateriality] = None
+    working_capital_impact: Optional[WorkingCapitalImpact] = None
+    business_risk_level: Optional[RiskLevel] = None
+    executive_summary: Optional[str] = None
+    financial_impact_assessment: Optional[Dict[str, Any]] = None
+    recommended_actions: Optional[List[str]] = None
+    cfo_justification: Optional[str] = None
+
+
+class ExceptionExplainabilityRequest(BaseModel):
+    """Request for exception explainability analysis."""
+    exception_id: str
+    include_financial_impact: bool = True
+    include_working_capital_analysis: bool = True
+    include_risk_assessment: bool = True
+    include_recommendations: bool = True
+    detail_level: str = Field(default="comprehensive", pattern="^(basic|detailed|comprehensive)$")
+
+
+class ExceptionExplainabilityResponse(BaseModel):
+    """Response for exception explainability analysis."""
+    exception_id: str
+    analysis_timestamp: datetime
+    exception_summary: Dict[str, Any]
+    executive_summary: ExecutiveSummary
+    financial_impact_assessment: FinancialImpact
+    working_capital_implications: WorkingCapitalAnalysis
+    cash_flow_analysis: Dict[str, Any]
+    risk_assessment: BusinessRiskAssessment
+    operational_impact: Dict[str, Any]
+    recommended_actions: List[RecommendedAction]
+    business_metrics: Dict[str, Any]
+    investment_justification: Dict[str, Any]
+    cfo_grade_details: CFOGradeAssessment
+
+
+class CFOGradeSummary(BaseModel):
+    """CFO grade summary for dashboard."""
+    total_exceptions: int
+    grade_distribution: Dict[CFOGrade, int]
+    priority_distribution: Dict[BusinessPriority, int]
+    materiality_distribution: Dict[FinancialMateriality, int]
+    risk_distribution: Dict[RiskLevel, int]
+    financial_impact_summary: Dict[str, float]
+    working_capital_impact_summary: Dict[str, float]
+    critical_exceptions: List[ExceptionResponseWithCFO]
+    high_priority_actions: List[RecommendedAction]
+    trends: Dict[str, Any]
+    recommendations: List[str]
+
+
+class CFOGradeSummaryRequest(BaseModel):
+    """Request for CFO grade summary."""
+    time_period_days: int = 30
+    include_resolved: bool = False
+    grade_filter: Optional[List[CFOGrade]] = None
+    priority_filter: Optional[List[BusinessPriority]] = None
+    materiality_filter: Optional[List[FinancialMateriality]] = None
+    include_financial_summary: bool = True
+    include_trends: bool = True
+
+
+class CFOGradeBatchUpdate(BaseModel):
+    """Batch update request for CFO-graded exceptions."""
+    exception_ids: List[str]
+    cfo_grade_update: Optional[CFOGrade] = None
+    business_priority_update: Optional[BusinessPriority] = None
+    financial_materiality_update: Optional[FinancialMateriality] = None
+    add_notes: Optional[str] = None
+    escalation_required: bool = False
+    escalation_reason: Optional[str] = None
+
+
+class CFOExceptionMetrics(BaseModel):
+    """CFO-specific exception metrics."""
+    period_days: int
+    total_exceptions: int
+    cfo_grade_distribution: Dict[CFOGrade, int]
+    financial_exposure_total: float
+    working_capital_impact_total: float
+    high_risk_exceptions_count: int
+    board_reporting_required_count: int
+    average_resolution_time_hours: float
+    exceptions_by_category: Dict[str, Dict[CFOGrade, int]]
+    trends: Dict[str, Any]
+    top_financial_impacts: List[Dict[str, Any]]
+    recommended_investments: List[Dict[str, Any]]
+
+
 class ExceptionCreateRequest(BaseModel):
     """Request for manual exception creation."""
     invoice_id: str

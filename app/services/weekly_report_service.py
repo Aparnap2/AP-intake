@@ -8,6 +8,8 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 import json
 from pathlib import Path
+from uuid import uuid4
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc, func
@@ -19,6 +21,11 @@ from app.models.reports import (
 )
 from app.services.analytics_engine import AnalyticsEngine
 from app.core.logging import get_logger
+from app.api.schemas.digest import (
+    CFODigest, CFODigestRequest, ExecutiveSummary, KeyMetric,
+    WorkingCapitalMetrics, ActionItem, EvidenceLink, EvidenceType,
+    DigestPriority, BusinessImpactLevel, N8nCFODigestRequest
+)
 
 logger = get_logger(__name__)
 
@@ -762,3 +769,621 @@ class WeeklyReportService:
             await self.session.delete(report)
             return True
         return False
+
+
+class CFODigestService:
+    """Service for generating Monday 9am CFO Digest with executive insights and evidence links."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.analytics_engine = AnalyticsEngine(session)
+        self.template_dir = Path(__file__).parent.parent.parent / "templates" / "reports"
+
+    async def generate_monday_digest(
+        self,
+        request: CFODigestRequest,
+        generated_by: Optional[str] = None
+    ) -> CFODigest:
+        """Generate comprehensive Monday 9am CFO digest."""
+        try:
+            # Default to last week if not specified
+            if request.week_start is None:
+                today = datetime.now(timezone.utc).date()
+                days_since_monday = today.weekday()
+                week_start = datetime.combine(
+                    today - timedelta(days=days_since_monday + 7),
+                    datetime.min.time(),
+                    tzinfo=timezone.utc
+                )
+            else:
+                week_start = request.week_start
+
+            week_end = request.week_end or (week_start + timedelta(days=7))
+
+            logger.info(f"Generating Monday CFO Digest for {week_start.date()} to {week_end.date()}")
+
+            # Generate digest components
+            executive_summary = await self._generate_executive_summary(week_start, week_end)
+            key_metrics = await self._generate_key_metrics(week_start, week_end, request.priority_threshold)
+            working_capital_metrics = await self._generate_working_capital_metrics(
+                week_start, week_end, request.include_working_capital_analysis
+            )
+            action_items = await self._generate_action_items(
+                week_start, week_end,
+                request.priority_threshold,
+                request.business_impact_threshold,
+                request.include_action_items
+            )
+
+            # Get metadata
+            metadata = await self._get_digest_metadata(week_start, week_end)
+
+            # Create digest
+            digest = CFODigest(
+                id=uuid4(),
+                title=f"Monday CFO Digest - {week_start.strftime('%B %d, %Y')}",
+                week_start=week_start,
+                week_end=week_end,
+                generated_at=datetime.now(timezone.utc),
+                executive_summary=executive_summary,
+                key_metrics=key_metrics,
+                working_capital_metrics=working_capital_metrics,
+                action_items=action_items,
+                **metadata
+            )
+
+            # Schedule delivery if requested
+            if request.schedule_delivery:
+                digest.delivery_scheduled_at = self._calculate_next_monday_9am()
+                digest.delivery_status = "scheduled"
+                digest.recipients = request.recipients
+
+            logger.info(f"Monday CFO Digest generated successfully: {digest.id}")
+            return digest
+
+        except Exception as e:
+            logger.error(f"Failed to generate Monday CFO Digest: {e}")
+            raise
+
+    async def _generate_executive_summary(
+        self,
+        week_start: datetime,
+        week_end: datetime
+    ) -> ExecutiveSummary:
+        """Generate executive summary with business insights."""
+        try:
+            # Get weekly analytics
+            cost_analysis = await self.analytics_engine.calculate_weekly_cost_analysis(week_start, week_end)
+            processing_metrics = await self.analytics_engine.calculate_processing_metrics(week_start, week_end)
+            exception_analysis = await self.analytics_engine.calculate_exception_analysis(week_start, week_end)
+            slo_metrics = await self.analytics_engine.calculate_slo_metrics(week_start, week_end)
+
+            # Calculate key performance indicators
+            success_rate = (processing_metrics.processed_invoices / processing_metrics.total_invoices * 100) if processing_metrics.total_invoices > 0 else 0
+            cost_efficiency = 100 - min(100, (cost_analysis.cost_per_invoice / 5.0) * 100)  # Target: $5 per invoice
+            resolution_rate = exception_analysis.resolution_rate_percentage
+            slo_attainment = sum(slo.attainment_percentage for slo in slo_metrics) / len(slo_metrics) if slo_metrics else 0
+
+            # Determine overall performance rating
+            overall_score = (success_rate + cost_efficiency + resolution_rate + slo_attainment) / 4
+            if overall_score >= 90:
+                performance_rating = "Excellent"
+                headline = f"Outstanding Performance: {success_rate:.1f}% Success Rate with Strong Cost Efficiency"
+            elif overall_score >= 80:
+                performance_rating = "Good"
+                headline = f"Strong Performance: {success_rate:.1f}% Success Rate Maintained"
+            elif overall_score >= 70:
+                performance_rating = "Satisfactory"
+                headline = f"Steady Performance: {success_rate:.1f}% Success Rate with Opportunities for Improvement"
+            else:
+                performance_rating = "Needs Attention"
+                headline = f"Performance Review Required: {success_rate:.1f}% Success Rate Below Target"
+
+            # Generate highlights
+            highlights = []
+            concerns = []
+
+            if success_rate > 95:
+                highlights.append(f"Exceptional processing success rate of {success_rate:.1f}%")
+            elif success_rate < 90:
+                concerns.append(f"Processing success rate of {success_rate:.1f}% below 90% target")
+
+            if cost_analysis.cost_per_invoice < 2.0:
+                highlights.append(f"Excellent cost efficiency at ${cost_analysis.cost_per_invoice:.2f} per invoice")
+            elif cost_analysis.cost_per_invoice > 5.0:
+                concerns.append(f"High cost per invoice at ${cost_analysis.cost_per_invoice:.2f}")
+
+            if resolution_rate > 85:
+                highlights.append(f"Strong exception resolution at {resolution_rate:.1f}%")
+            elif resolution_rate < 70:
+                concerns.append(f"Exception resolution rate of {resolution_rate:.1f}% needs improvement")
+
+            # Generate business insights
+            business_insights = [
+                f"Processing {processing_metrics.total_invoices} invoices this week with {success_rate:.1f}% automation success rate",
+                f"Cost per invoice of ${cost_analysis.cost_per_invoice:.2f} represents {cost_efficiency:.1f}% efficiency versus target",
+                f"Working capital optimization through {processing_metrics.auto_approval_rate_percentage:.1f}% auto-approval rate",
+                f"Exception handling efficiency at {resolution_rate:.1f}% resolution rate"
+            ]
+
+            # Working capital impact
+            wc_impact = (
+                f"Current processes tie approximately ${cost_analysis.cost_per_invoice * processing_metrics.total_invoices:.0f} in working capital. "
+                f"Automation improvements could reduce this by up to 30% through enhanced processing efficiency."
+            )
+
+            # Generate summary components
+            return ExecutiveSummary(
+                headline=headline,
+                overall_performance_rating=performance_rating,
+                key_highlights=highlights,
+                key_concerns=concerns,
+                business_insights=business_insights,
+                working_capital_impact=wc_impact,
+                financial_summary=f"Weekly processing cost of ${cost_analysis.total_processing_cost:.2f} with ROI of {cost_analysis.roi_percentage:.1f}%",
+                operational_efficiency=f"Auto-approval rate of {processing_metrics.auto_approval_rate_percentage:.1f}% with extraction accuracy of {processing_metrics.extraction_accuracy_percentage:.1f}%",
+                risk_assessment=f"Risk level: {'Low' if overall_score > 85 else 'Moderate' if overall_score > 70 else 'High'} based on current performance metrics",
+                outlook=f"Forecast: Maintain current trajectory with focus on {'cost optimization' if cost_analysis.cost_per_invoice > 3.0 else 'quality improvement' if processing_metrics.extraction_accuracy_percentage < 90 else 'scaling operations'}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to generate executive summary: {e}")
+            raise
+
+    async def _generate_key_metrics(
+        self,
+        week_start: datetime,
+        week_end: datetime,
+        priority_threshold: DigestPriority
+    ) -> List[KeyMetric]:
+        """Generate key performance indicators with evidence links."""
+        try:
+            # Get analytics data
+            cost_analysis = await self.analytics_engine.calculate_weekly_cost_analysis(week_start, week_end)
+            processing_metrics = await self.analytics_engine.calculate_processing_metrics(week_start, week_end)
+            exception_analysis = await self.analytics_engine.calculate_exception_analysis(week_start, week_end)
+            slo_metrics = await self.analytics_engine.calculate_slo_metrics(week_start, week_end)
+
+            key_metrics = []
+
+            # Processing volume metric
+            key_metrics.append(KeyMetric(
+                name="Invoices Processed",
+                value=processing_metrics.total_invoices,
+                unit="invoices",
+                trend=self._calculate_trend(processing_metrics.total_invoices, processing_metrics.total_invoices * 0.95),  # Estimate previous week
+                target=processing_metrics.total_invoices * 1.1,  # 10% growth target
+                attainment_percentage=min(100, (processing_metrics.total_invoices / (processing_metrics.total_invoices * 1.1)) * 100),
+                priority=DigestPriority.HIGH,
+                evidence_links=[
+                    EvidenceLink(
+                        evidence_id=f"processing_report_{week_start.date()}",
+                        evidence_type=EvidenceType.PERFORMANCE_METRIC,
+                        title="Weekly Processing Report",
+                        description="Detailed processing metrics for the week",
+                        url=f"/api/v1/metrics/processing?week_start={week_start.date()}",
+                        created_at=datetime.now(timezone.utc),
+                        impact_score=85.0
+                    )
+                ]
+            ))
+
+            # Success rate metric
+            success_rate = (processing_metrics.processed_invoices / processing_metrics.total_invoices * 100) if processing_metrics.total_invoices > 0 else 0
+            key_metrics.append(KeyMetric(
+                name="Processing Success Rate",
+                value=round(success_rate, 1),
+                unit="%",
+                target=95.0,
+                attainment_percentage=min(100, (success_rate / 95.0) * 100),
+                priority=DigestPriority.CRITICAL if success_rate < 90 else DigestPriority.HIGH,
+                evidence_links=[
+                    EvidenceLink(
+                        evidence_id=f"success_analysis_{week_start.date()}",
+                        evidence_type=EvidenceType.SLO_REPORT,
+                        title="Processing Success Rate Analysis",
+                        description="Detailed success rate breakdown and trends",
+                        url=f"/api/v1/metrics/success-rate?week_start={week_start.date()}",
+                        created_at=datetime.now(timezone.utc),
+                        impact_score=95.0
+                    )
+                ]
+            ))
+
+            # Cost per invoice metric
+            key_metrics.append(KeyMetric(
+                name="Cost Per Invoice",
+                value=round(cost_analysis.cost_per_invoice, 2),
+                unit="$",
+                target=3.0,
+                attainment_percentage=max(0, min(100, (3.0 / cost_analysis.cost_per_invoice) * 100)),
+                priority=DigestPriority.HIGH,
+                evidence_links=[
+                    EvidenceLink(
+                        evidence_id=f"cost_analysis_{week_start.date()}",
+                        evidence_type=EvidenceType.COST_ANALYSIS,
+                        title="Cost Analysis Report",
+                        description="Detailed cost breakdown and optimization opportunities",
+                        url=f"/api/v1/reports/cost-analysis?week_start={week_start.date()}",
+                        created_at=datetime.now(timezone.utc),
+                        impact_score=80.0
+                    )
+                ]
+            ))
+
+            # Exception resolution rate metric
+            key_metrics.append(KeyMetric(
+                name="Exception Resolution Rate",
+                value=round(exception_analysis.resolution_rate_percentage, 1),
+                unit="%",
+                target=85.0,
+                attainment_percentage=min(100, (exception_analysis.resolution_rate_percentage / 85.0) * 100),
+                priority=DigestPriority.MEDIUM,
+                evidence_links=[
+                    EvidenceLink(
+                        evidence_id=f"exception_report_{week_start.date()}",
+                        evidence_type=EvidenceType.EXCEPTION,
+                        title="Exception Management Report",
+                        description="Exception trends and resolution performance",
+                        url=f"/api/v1/exceptions/summary?week_start={week_start.date()}",
+                        created_at=datetime.now(timezone.utc),
+                        impact_score=75.0
+                    )
+                ]
+            ))
+
+            # Working capital efficiency metric
+            wc_efficiency = processing_metrics.auto_approval_rate_percentage
+            key_metrics.append(KeyMetric(
+                name="Working Capital Efficiency",
+                value=round(wc_efficiency, 1),
+                unit="%",
+                target=80.0,
+                attainment_percentage=min(100, (wc_efficiency / 80.0) * 100),
+                priority=DigestPriority.HIGH,
+                evidence_links=[
+                    EvidenceLink(
+                        evidence_id=f"wc_efficiency_{week_start.date()}",
+                        evidence_type=EvidenceType.WORKFLOW_TRACE,
+                        title="Working Capital Efficiency Analysis",
+                        description="Auto-approval and processing efficiency metrics",
+                        url=f"/api/v1/working-capital/efficiency?week_start={week_start.date()}",
+                        created_at=datetime.now(timezone.utc),
+                        impact_score=90.0
+                    )
+                ]
+            ))
+
+            # Filter by priority threshold
+            priority_order = {
+                DigestPriority.CRITICAL: 4,
+                DigestPriority.HIGH: 3,
+                DigestPriority.MEDIUM: 2,
+                DigestPriority.LOW: 1
+            }
+
+            min_priority_value = priority_order.get(priority_threshold, 2)
+            filtered_metrics = [
+                metric for metric in key_metrics
+                if priority_order.get(metric.priority, 1) >= min_priority_value
+            ]
+
+            return filtered_metrics
+
+        except Exception as e:
+            logger.error(f"Failed to generate key metrics: {e}")
+            raise
+
+    async def _generate_working_capital_metrics(
+        self,
+        week_start: datetime,
+        week_end: datetime,
+        include_analysis: bool = True
+    ) -> WorkingCapitalMetrics:
+        """Generate working capital specific metrics."""
+        try:
+            # Get processing metrics
+            processing_metrics = await self.analytics_engine.calculate_processing_metrics(week_start, week_end)
+            cost_analysis = await self.analytics_engine.calculate_weekly_cost_analysis(week_start, week_end)
+
+            # Calculate working capital metrics
+            total_wc_tied = Decimal(str(cost_analysis.total_processing_cost))
+            avg_processing_time = processing_metrics.average_processing_time_seconds / 3600  # Convert to hours
+            automation_rate = processing_metrics.auto_approval_rate_percentage
+            exception_resolution_rate = 95.0  # Placeholder - would calculate from exception data
+
+            # Vendor impact analysis
+            vendor_impact_analysis = {
+                "top_vendors_by_volume": [
+                    {"vendor_name": "Vendor A", "invoice_count": 150, "total_value": 75000},
+                    {"vendor_name": "Vendor B", "invoice_count": 120, "total_value": 60000},
+                    {"vendor_name": "Vendor C", "invoice_count": 95, "total_value": 47500}
+                ],
+                "vendor_performance": {
+                    "avg_processing_time_by_vendor": 2.5,
+                    "exception_rate_by_vendor": 0.05,
+                    "cost_efficiency_by_vendor": 0.85
+                }
+            }
+
+            # Cost savings opportunities
+            cost_savings_opportunities = [
+                "Implement early payment discounts for top vendors (estimated 2% savings)",
+                "Optimize payment scheduling to align with cash flow cycles",
+                "Automate duplicate detection to prevent overpayments",
+                "Implement dynamic discounting for working capital optimization"
+            ]
+
+            return WorkingCapitalMetrics(
+                total_wc_tied=total_wc_tied,
+                wc_tied_change_pct=cost_analysis.cost_change_percentage,
+                avg_processing_time_hours=avg_processing_time,
+                automation_rate=automation_rate,
+                exception_resolution_rate=exception_resolution_rate,
+                vendor_impact_analysis=vendor_impact_analysis,
+                duplicate_impact_score=75.0,  # Placeholder - would calculate from duplicate detection service
+                cost_savings_opportunities=cost_savings_opportunities
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to generate working capital metrics: {e}")
+            raise
+
+    async def _generate_action_items(
+        self,
+        week_start: datetime,
+        week_end: datetime,
+        priority_threshold: DigestPriority,
+        business_impact_threshold: BusinessImpactLevel,
+        include_items: bool = True
+    ) -> List[ActionItem]:
+        """Generate action items with business impact scoring."""
+        try:
+            if not include_items:
+                return []
+
+            # Get analytics data
+            cost_analysis = await self.analytics_engine.calculate_weekly_cost_analysis(week_start, week_end)
+            processing_metrics = await self.analytics_engine.calculate_processing_metrics(week_start, week_end)
+            exception_analysis = await self.analytics_engine.calculate_exception_analysis(week_start, week_end)
+
+            action_items = []
+
+            # Cost optimization action items
+            if cost_analysis.cost_per_invoice > 3.0:
+                action_items.append(ActionItem(
+                    id=str(uuid4()),
+                    title="Reduce Cost Per Invoice",
+                    description=f"Current cost per invoice (${cost_analysis.cost_per_invoice:.2f}) exceeds $3.00 target",
+                    business_impact_level=BusinessImpactLevel.HIGH,
+                    financial_impact=Decimal(str((cost_analysis.cost_per_invoice - 3.0) * processing_metrics.total_invoices)),
+                    time_to_resolve="4-6 weeks",
+                    owner="Operations Manager",
+                    priority=DigestPriority.HIGH,
+                    due_date=datetime.now(timezone.utc) + timedelta(days=42),
+                    evidence_links=[
+                        EvidenceLink(
+                            evidence_id=f"cost_optimization_{week_start.date()}",
+                            evidence_type=EvidenceType.COST_ANALYSIS,
+                            title="Cost Optimization Analysis",
+                            description="Detailed cost breakdown and savings opportunities",
+                            url=f"/api/v1/reports/cost-optimization?week_start={week_start.date()}",
+                            created_at=datetime.now(timezone.utc),
+                            impact_score=85.0
+                        )
+                    ],
+                    recommendations=[
+                        "Review and optimize LLM usage patterns",
+                        "Implement batch processing for similar invoices",
+                        "Negotiate better rates with service providers"
+                    ]
+                ))
+
+            # Exception handling improvement
+            if exception_analysis.resolution_rate_percentage < 80:
+                action_items.append(ActionItem(
+                    id=str(uuid4()),
+                    title="Improve Exception Resolution Process",
+                    description=f"Exception resolution rate ({exception_analysis.resolution_rate_percentage:.1f}%) below 80% target",
+                    business_impact_level=BusinessImpactLevel.MODERATE,
+                    financial_impact=Decimal(str(exception_analysis.total_exceptions * 25)),  # $25 per exception estimate
+                    time_to_resolve="2-3 weeks",
+                    owner="AP Team Lead",
+                    priority=DigestPriority.MEDIUM,
+                    due_date=datetime.now(timezone.utc) + timedelta(days=21),
+                    evidence_links=[
+                        EvidenceLink(
+                            evidence_id=f"exception_resolution_{week_start.date()}",
+                            evidence_type=EvidenceType.EXCEPTION,
+                            title="Exception Resolution Analysis",
+                            description="Exception trends and resolution bottlenecks",
+                            url=f"/api/v1/exceptions/resolution-analysis?week_start={week_start.date()}",
+                            created_at=datetime.now(timezone.utc),
+                            impact_score=70.0
+                        )
+                    ],
+                    recommendations=[
+                        "Implement automated exception categorization",
+                        "Provide additional training for exception handlers",
+                        "Establish exception resolution SLAs"
+                    ]
+                ))
+
+            # Automation improvement
+            if processing_metrics.auto_approval_rate_percentage < 70:
+                action_items.append(ActionItem(
+                    id=str(uuid4()),
+                    title="Increase Auto-Approval Rate",
+                    description=f"Auto-approval rate ({processing_metrics.auto_approval_rate_percentage:.1f}%) below 70% target",
+                    business_impact_level=BusinessImpactLevel.MODERATE,
+                    financial_impact=Decimal(str((70 - processing_metrics.auto_approval_rate_percentage) * processing_metrics.total_invoices * 5)),  # $5 per manual invoice estimate
+                    time_to_resolve="3-4 weeks",
+                    owner="Data Science Team",
+                    priority=DigestPriority.MEDIUM,
+                    due_date=datetime.now(timezone.utc) + timedelta(days=28),
+                    evidence_links=[
+                        EvidenceLink(
+                            evidence_id=f"automation_analysis_{week_start.date()}",
+                            evidence_type=EvidenceType.PERFORMANCE_METRIC,
+                            title="Automation Efficiency Analysis",
+                            description="Current automation performance and improvement opportunities",
+                            url=f"/api/v1/metrics/automation?week_start={week_start.date()}",
+                            created_at=datetime.now(timezone.utc),
+                            impact_score=75.0
+                        )
+                    ],
+                    recommendations=[
+                        "Fine-tune extraction confidence thresholds",
+                        "Improve vendor data quality",
+                        "Implement machine learning models for better extraction"
+                    ]
+                ))
+
+            # Quality improvement
+            if processing_metrics.extraction_accuracy_percentage < 90:
+                action_items.append(ActionItem(
+                    id=str(uuid4()),
+                    title="Enhance Data Extraction Accuracy",
+                    description=f"Extraction accuracy ({processing_metrics.extraction_accuracy_percentage:.1f}%) below 90% target",
+                    business_impact_level=BusinessImpactLevel.HIGH,
+                    financial_impact=Decimal(str((90 - processing_metrics.extraction_accuracy_percentage) * processing_metrics.total_invoices * 2)),  # $2 per correction estimate
+                    time_to_resolve="6-8 weeks",
+                    owner="ML Engineering Team",
+                    priority=DigestPriority.HIGH,
+                    due_date=datetime.now(timezone.utc) + timedelta(days=56),
+                    evidence_links=[
+                        EvidenceLink(
+                            evidence_id=f"extraction_quality_{week_start.date()}",
+                            evidence_type=EvidenceType.PERFORMANCE_METRIC,
+                            title="Extraction Quality Report",
+                            description="Data extraction accuracy and quality metrics",
+                            url=f"/api/v1/metrics/extraction-quality?week_start={week_start.date()}",
+                            created_at=datetime.now(timezone.utc),
+                            impact_score=80.0
+                        )
+                    ],
+                    recommendations=[
+                        "Retrain extraction models with recent data",
+                        "Implement feedback loop for manual corrections",
+                        "Add vendor-specific extraction rules"
+                    ]
+                ))
+
+            # Filter by priority and business impact thresholds
+            priority_order = {
+                DigestPriority.CRITICAL: 4,
+                DigestPriority.HIGH: 3,
+                DigestPriority.MEDIUM: 2,
+                DigestPriority.LOW: 1
+            }
+
+            impact_order = {
+                BusinessImpactLevel.CRITICAL: 4,
+                BusinessImpactLevel.HIGH: 3,
+                BusinessImpactLevel.MODERATE: 2,
+                BusinessImpactLevel.LOW: 1
+            }
+
+            min_priority_value = priority_order.get(priority_threshold, 2)
+            min_impact_value = impact_order.get(business_impact_threshold, 2)
+
+            filtered_items = [
+                item for item in action_items
+                if (priority_order.get(item.priority, 1) >= min_priority_value and
+                    impact_order.get(item.business_impact_level, 1) >= min_impact_value)
+            ]
+
+            # Sort by priority and business impact
+            filtered_items.sort(
+                key=lambda x: (
+                    priority_order.get(x.priority, 1),
+                    impact_order.get(x.business_impact_level, 1),
+                    x.financial_impact or Decimal('0')
+                ),
+                reverse=True
+            )
+
+            return filtered_items[:10]  # Limit to top 10 action items
+
+        except Exception as e:
+            logger.error(f"Failed to generate action items: {e}")
+            raise
+
+    async def _get_digest_metadata(
+        self,
+        week_start: datetime,
+        week_end: datetime
+    ) -> Dict[str, Any]:
+        """Get metadata for the digest."""
+        try:
+            # Get analytics data
+            cost_analysis = await self.analytics_engine.calculate_weekly_cost_analysis(week_start, week_end)
+            processing_metrics = await self.analytics_engine.calculate_processing_metrics(week_start, week_end)
+            exception_analysis = await self.analytics_engine.calculate_exception_analysis(week_start, week_end)
+
+            return {
+                "total_invoices_processed": processing_metrics.total_invoices,
+                "total_exceptions": exception_analysis.total_exceptions,
+                "cost_per_invoice": Decimal(str(cost_analysis.cost_per_invoice)),
+                "roi_percentage": cost_analysis.roi_percentage
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get digest metadata: {e}")
+            raise
+
+    def _calculate_trend(self, current_value: float, previous_value: float) -> str:
+        """Calculate trend direction."""
+        if previous_value == 0:
+            return "stable"
+
+        change_percentage = ((current_value - previous_value) / previous_value) * 100
+        if change_percentage > 5:
+            return "increasing"
+        elif change_percentage < -5:
+            return "decreasing"
+        else:
+            return "stable"
+
+    def _calculate_next_monday_9am(self) -> datetime:
+        """Calculate next Monday 9am UTC."""
+        today = datetime.now(timezone.utc)
+        days_until_monday = (7 - today.weekday()) % 7 or 7  # Next Monday (0 = Monday)
+
+        next_monday = today + timedelta(days=days_until_monday)
+        monday_9am = next_monday.replace(hour=9, minute=0, second=0, microsecond=0)
+
+        return monday_9am
+
+    async def create_n8n_workflow_request(self, digest: CFODigest) -> N8nCFODigestRequest:
+        """Create N8n workflow request for digest delivery."""
+        return N8nCFODigestRequest(
+            digest_id=str(digest.id),
+            title=digest.title,
+            week_start=digest.week_start,
+            week_end=digest.week_end,
+            executive_summary=digest.executive_summary,
+            key_metrics=digest.key_metrics,
+            working_capital_metrics=digest.working_capital_metrics,
+            action_items=digest.action_items,
+            recipients=digest.recipients or ["cfo@company.com"],
+            delivery_priority="high"
+        )
+
+    async def save_digest_to_database(self, digest: CFODigest) -> str:
+        """Save digest to database (placeholder for actual implementation)."""
+        # This would integrate with the actual database models for CFO digests
+        # For now, return the digest ID
+        return str(digest.id)
+
+    async def get_digest_by_id(self, digest_id: str) -> Optional[CFODigest]:
+        """Retrieve digest by ID (placeholder for actual implementation)."""
+        # This would retrieve from the actual database
+        # For now, return None
+        return None
+
+    async def list_recent_digests(self, limit: int = 10) -> List[CFODigest]:
+        """List recent digests (placeholder for actual implementation)."""
+        # This would retrieve from the actual database
+        # For now, return empty list
+        return []

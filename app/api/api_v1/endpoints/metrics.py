@@ -10,11 +10,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_async_session, get_current_active_user
+from app.api.api_v1.deps import get_async_session, get_current_active_user
 from app.models.user import User
 from app.models.metrics import SLIType, SLOPeriod
 from app.services.metrics_service import metrics_service
-from app.core.exceptions import ValidationError
+from app.core.exceptions import ValidationException
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,141 @@ async def get_slo_definitions(
     except Exception as e:
         logger.error(f"Failed to get SLO definitions: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve SLO definitions: {str(e)}")
+
+
+@router.get("/weekly/summary", response_model=Dict[str, Any])
+async def get_weekly_metrics_summary(
+    weeks: int = Query(4, ge=1, le=52, description="Number of weeks to include"),
+    week_start: Optional[str] = Query(None, description="Start date for specific week (ISO format)"),
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """
+    Get weekly metrics summary for KPI tracking and trend analysis.
+
+    This endpoint provides aggregated weekly metrics including:
+    - Processing volumes and automation rates
+    - Performance metrics (P50, P95, P99 times)
+    - Quality metrics (pass rates, accuracy)
+    - Cost efficiency and ROI
+    - Working capital optimization metrics
+    """
+    try:
+        from app.models.metrics import WeeklyMetric
+        from sqlalchemy import select, and_, desc, func
+
+        # Parse week start date if provided
+        if week_start:
+            try:
+                week_start_date = datetime.fromisoformat(week_start.replace('Z', '+00:00')).date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format. Use ISO format.")
+        else:
+            week_start_date = None
+
+        # Build query
+        query = select(WeeklyMetric).order_by(desc(WeeklyMetric.week_start_date)).limit(weeks)
+
+        if week_start_date:
+            query = query.where(WeeklyMetric.week_start_date >= week_start_date)
+
+        result = await session.execute(query)
+        weekly_metrics = result.scalars().all()
+
+        # Format response
+        metrics_data = []
+        for metric in weekly_metrics:
+            metrics_data.append({
+                "week_start_date": metric.week_start_date.isoformat(),
+                "week_end_date": metric.week_end_date.isoformat(),
+                "invoices_processed": metric.invoices_processed,
+                "auto_processed": metric.auto_processed,
+                "manual_processed": metric.manual_processed,
+                "exceptions_created": metric.exceptions_created,
+                "exceptions_resolved": metric.exceptions_resolved,
+                "duplicates_detected": metric.duplicates_detected,
+                "avg_processing_time_hours": float(metric.avg_processing_time_hours),
+                "total_invoice_amount": float(metric.total_invoice_amount),
+                "auto_processing_rate": float(metric.auto_processing_rate),
+                "pass_rate_structural": float(metric.pass_rate_structural),
+                "pass_rate_math": float(metric.pass_rate_math),
+                "p50_time_to_ready_minutes": float(metric.p50_time_to_ready_minutes) if metric.p50_time_to_ready_minutes else None,
+                "p95_time_to_ready_minutes": float(metric.p95_time_to_ready_minutes) if metric.p95_time_to_ready_minutes else None,
+                "p99_time_to_ready_minutes": float(metric.p99_time_to_ready_minutes) if metric.p99_time_to_ready_minutes else None,
+                "duplicate_recall_percentage": float(metric.duplicate_recall_percentage) if metric.duplicate_recall_percentage else None,
+                "exception_resolution_time_p50_hours": float(metric.exception_resolution_time_p50_hours) if metric.exception_resolution_time_p50_hours else None,
+                "api_response_time_p95_ms": float(metric.api_response_time_p95_ms) if metric.api_response_time_p95_ms else None,
+                "system_availability_percentage": float(metric.system_availability_percentage) if metric.system_availability_percentage else None,
+                "cost_per_invoice": float(metric.cost_per_invoice),
+                "total_cost": float(metric.total_cost),
+                "roi_percentage": float(metric.roi_percentage),
+                "working_capital_optimization": metric.working_capital_optimization,
+                "performance_summary": metric.performance_summary,
+                "quality_metrics": metric.quality_metrics,
+                "created_at": metric.created_at.isoformat(),
+            })
+
+        # Calculate trends and averages
+        if metrics_data:
+            total_invoices = sum(m["invoices_processed"] for m in metrics_data)
+            avg_processing_rate = sum(m["auto_processing_rate"] for m in metrics_data) / len(metrics_data)
+            avg_cost_per_invoice = sum(m["cost_per_invoice"] for m in metrics_data) / len(metrics_data)
+            avg_roi = sum(m["roi_percentage"] for m in metrics_data) / len(metrics_data)
+
+            # Calculate week-over-week trends
+            trends = {}
+            if len(metrics_data) >= 2:
+                current_week = metrics_data[0]
+                previous_week = metrics_data[1]
+
+                for metric in ["auto_processing_rate", "cost_per_invoice", "roi_percentage", "pass_rate_structural", "pass_rate_math"]:
+                    current_val = current_week[metric]
+                    previous_val = previous_week[metric]
+                    if previous_val > 0:
+                        change_pct = ((current_val - previous_val) / previous_val) * 100
+                        trends[metric] = {
+                            "current": current_val,
+                            "previous": previous_val,
+                            "change_percentage": round(change_pct, 2),
+                            "trend": "increasing" if change_pct > 2 else "decreasing" if change_pct < -2 else "stable"
+                        }
+        else:
+            total_invoices = 0
+            avg_processing_rate = 0
+            avg_cost_per_invoice = 0
+            avg_roi = 0
+            trends = {}
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "data": {
+                    "weekly_metrics": metrics_data,
+                    "summary": {
+                        "total_weeks": len(metrics_data),
+                        "total_invoices_processed": total_invoices,
+                        "average_auto_processing_rate": round(avg_processing_rate, 2),
+                        "average_cost_per_invoice": round(avg_cost_per_invoice, 2),
+                        "average_roi_percentage": round(avg_roi, 2),
+                        "latest_week_date": metrics_data[0]["week_start_date"] if metrics_data else None,
+                    },
+                    "trends": trends,
+                    "performance_periods": {
+                        "p50_time_to_ready_minutes": [m["p50_time_to_ready_minutes"] for m in metrics_data if m["p50_time_to_ready_minutes"]],
+                        "p95_time_to_ready_minutes": [m["p95_time_to_ready_minutes"] for m in metrics_data if m["p95_time_to_ready_minutes"]],
+                        "p99_time_to_ready_minutes": [m["p99_time_to_ready_minutes"] for m in metrics_data if m["p99_time_to_ready_minutes"]],
+                    }
+                },
+                "message": "Weekly metrics summary retrieved successfully"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get weekly metrics summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve weekly metrics: {str(e)}")
 
 
 @router.get("/slos/{slo_id}/measurements", response_model=Dict[str, Any])
@@ -246,7 +381,7 @@ async def get_kpi_summary(
 @router.get("/metrics/invoice-trends", response_model=Dict[str, Any])
 async def get_invoice_trends(
     days: int = Query(30, ge=1, le=365, description="Number of days of trend data"),
-    granularity: str = Query("daily", regex="^(hourly|daily|weekly)$", description="Data granularity"),
+    granularity: str = Query("daily", pattern="^(hourly|daily|weekly)$", description="Data granularity"),
     current_user: User = Depends(get_current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
@@ -371,7 +506,7 @@ async def get_invoice_trends(
 
 @router.get("/alerts", response_model=Dict[str, Any])
 async def get_slo_alerts(
-    severity: Optional[str] = Query(None, regex="^(info|warning|critical)$", description="Filter by severity"),
+    severity: Optional[str] = Query(None, pattern="^(info|warning|critical)$", description="Filter by severity"),
     resolved: Optional[bool] = Query(None, description="Filter by resolution status"),
     limit: int = Query(50, ge=1, le=500, description="Maximum number of alerts to return"),
     offset: int = Query(0, ge=0, description="Number of alerts to skip"),

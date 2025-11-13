@@ -174,7 +174,7 @@ class ApprovalRequest(Base, UUIDMixin, TimestampMixin):
 
     # Request data
     context_data = Column(JSON, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    approval_metadata = Column(JSON, nullable=True)
 
     # Indexes
     __table_args__ = (

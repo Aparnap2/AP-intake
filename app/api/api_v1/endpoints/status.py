@@ -7,10 +7,10 @@ from datetime import datetime, timedelta
 from typing import Dict, Any
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, cast, Text, text
 
-from app.db.session import get_db
+from app.api.api_v1.deps import get_async_session
 from app.models.invoice import Invoice, InvoiceStatus
 from app.workers.celery_app import celery_app
 from app.services.llm_service import LLMService
@@ -20,15 +20,18 @@ router = APIRouter()
 
 
 @router.get("/")
-async def get_system_status(db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def get_system_status(db: AsyncSession = Depends(get_async_session)) -> Dict[str, Any]:
     """Get comprehensive system status."""
     try:
         # Invoice statistics
-        total_invoices = db.query(Invoice).count()
-        status_counts = db.query(
-            Invoice.status,
-            func.count(Invoice.id).label('count')
-        ).group_by(Invoice.status).all()
+        total_invoices_result = await db.execute(select(func.count()).select_from(Invoice))
+        total_invoices = total_invoices_result.scalar()
+
+        status_counts_result = await db.execute(
+            select(Invoice.status, func.count(Invoice.id).label('count'))
+            .group_by(Invoice.status)
+        )
+        status_counts = status_counts_result.all()
 
         invoice_stats = {
             "total": total_invoices,
@@ -37,11 +40,18 @@ async def get_system_status(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
         # Recent activity (last 24 hours)
         yesterday = datetime.utcnow() - timedelta(days=1)
-        recent_invoices = db.query(Invoice).filter(Invoice.created_at >= yesterday).count()
-        recent_processed = db.query(Invoice).filter(
-            Invoice.created_at >= yesterday,
-            Invoice.status.in_([InvoiceStatus.VALIDATED, InvoiceStatus.READY, InvoiceStatus.STAGED])
-        ).count()
+        recent_invoices_result = await db.execute(
+            select(func.count()).select_from(Invoice).filter(Invoice.created_at >= yesterday)
+        )
+        recent_invoices = recent_invoices_result.scalar()
+
+        recent_processed_result = await db.execute(
+            select(func.count()).select_from(Invoice).filter(
+                Invoice.created_at >= yesterday,
+                cast(Invoice.status, Text).in_([InvoiceStatus.VALIDATED.value, InvoiceStatus.READY.value, InvoiceStatus.STAGED.value])
+            )
+        )
+        recent_processed = recent_processed_result.scalar()
 
         activity_stats = {
             "last_24h": {
@@ -111,23 +121,30 @@ async def _get_worker_stats() -> Dict[str, Any]:
         }
 
 
-async def _get_health_stats(db: Session) -> Dict[str, Any]:
+async def _get_health_stats(db: AsyncSession) -> Dict[str, Any]:
     """Get system health statistics."""
     try:
         # Database health
         db_health = {"status": "healthy"}
         try:
-            db.execute("SELECT 1")
+            await db.execute(text("SELECT 1"))
         except Exception as e:
             db_health = {"status": "unhealthy", "error": str(e)}
 
         # Error rate (last 24 hours)
         yesterday = datetime.utcnow() - timedelta(days=1)
-        error_count = db.query(Invoice).filter(
-            Invoice.created_at >= yesterday,
-            Invoice.status == InvoiceStatus.EXCEPTION
-        ).count()
-        total_count = db.query(Invoice).filter(Invoice.created_at >= yesterday).count()
+        error_count_result = await db.execute(
+            select(func.count()).select_from(Invoice).filter(
+                Invoice.created_at >= yesterday,
+                cast(Invoice.status, Text) == InvoiceStatus.EXCEPTION.value
+            )
+        )
+        error_count = error_count_result.scalar()
+
+        total_count_result = await db.execute(
+            select(func.count()).select_from(Invoice).filter(Invoice.created_at >= yesterday)
+        )
+        total_count = total_count_result.scalar()
 
         error_rate = (error_count / max(total_count, 1)) * 100
 

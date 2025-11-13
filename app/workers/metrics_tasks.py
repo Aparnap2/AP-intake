@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.services.metrics_service import metrics_service
+from app.services.cfo_digest_scheduler import cfo_digest_scheduler
 from app.models.metrics import SLOPeriod
 
 logger = logging.getLogger(__name__)
@@ -180,7 +181,7 @@ def cleanup_old_metrics_task(
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        try:
+        async def cleanup_async():
             async with AsyncSessionLocal() as session:
                 from app.models.metrics import SLIMeasurement, SLOAlert, InvoiceMetric
                 from sqlalchemy import select, delete
@@ -241,6 +242,8 @@ def cleanup_old_metrics_task(
 
                 return result
 
+        try:
+            return loop.run_until_complete(cleanup_async())
         finally:
             loop.close()
 
@@ -333,6 +336,47 @@ def generate_slo_report_task(
         }
 
 
+@celery_app.task(bind=True, name="generate_monday_cfo_digest")
+def generate_monday_cfo_digest_task(self) -> Dict[str, Any]:
+    """
+    Generate Monday 9am CFO digest and schedule delivery.
+
+    This task runs every Monday morning to generate the executive digest
+    with the previous week's performance metrics and schedule delivery.
+
+    Returns:
+        Dict with generation results
+    """
+    try:
+        logger.info("Starting Monday CFO digest generation")
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            result = loop.run_until_complete(
+                cfo_digest_scheduler.run_scheduled_check()
+            )
+
+            return {
+                "success": True,
+                "message": "Monday CFO digest generation completed",
+                "result": result,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        finally:
+            loop.close()
+
+    except Exception as e:
+        logger.error(f"Failed to generate Monday CFO digest: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+
 # Schedule periodic tasks
 from celery.schedules import crontab
 
@@ -368,8 +412,15 @@ celery_app.conf.beat_schedule = {
     # Generate weekly report
     "generate-weekly-report": {
         "task": "generate_slo_report",
-        "schedule": crontab(hour=9, minute=0, day_of_week=1),  # Monday 9:00 AM UTC
+        "schedule": crontab(hour=8, minute=45, day_of_week=1),  # Monday 8:45 AM UTC
         "args": ("weekly", 7),
+    },
+
+    # Generate Monday CFO Digest (9:00 AM UTC)
+    "generate-monday-cfo-digest": {
+        "task": "generate_monday_cfo_digest",
+        "schedule": crontab(hour=9, minute=0, day_of_week=1),  # Monday 9:00 AM UTC
+        "args": (),
     },
 
     # Cleanup old metrics (monthly)

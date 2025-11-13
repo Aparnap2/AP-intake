@@ -260,6 +260,7 @@ dependencies = [
     { name = "boto3" },
     { name = "celery" },
     { name = "cryptography" },
+    { name = "deprecated" },
     { name = "docling" },
     { name = "email-validator" },
     { name = "fastapi" },
@@ -280,6 +281,7 @@ dependencies = [
     { name = "langsmith" },
     { name = "loguru" },
     { name = "lz4" },
+    { name = "memory-profiler" },
     { name = "minio" },
     { name = "openai" },
     { name = "opentelemetry-api" },
@@ -306,6 +308,7 @@ dependencies = [
     { name = "python-barcode" },
     { name = "python-dateutil" },
     { name = "python-jose", extra = ["cryptography"] },
+    { name = "python-magic" },
     { name = "python-multipart" },
     { name = "python-quickbooks" },
     { name = "pytz" },
@@ -313,6 +316,7 @@ dependencies = [
     { name = "qrcode", extra = ["pil"] },
     { name = "redis" },
     { name = "reportlab" },
+    { name = "rich" },
     { name = "sentry-sdk", extra = ["fastapi"] },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
@@ -350,6 +354,7 @@ requires-dist = [
     { name = "boto3", specifier = "==1.34.0" },
     { name = "celery", specifier = "==5.3.4" },
     { name = "cryptography", specifier = ">=41.0.0" },
+    { name = "deprecated", specifier = ">=1.3.1" },
     { name = "docling", specifier = "==2.60.1" },
     { name = "email-validator", specifier = ">=2.2.0" },
     { name = "fastapi", specifier = "==0.104.1" },
@@ -370,6 +375,7 @@ requires-dist = [
     { name = "langsmith", specifier = "==0.4.41" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "lz4", specifier = "==4.3.2" },
+    { name = "memory-profiler", specifier = ">=0.61.0" },
     { name = "minio", specifier = "==7.2.0" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "opentelemetry-api", specifier = ">=1.21.0" },
@@ -396,6 +402,7 @@ requires-dist = [
     { name = "python-barcode", specifier = ">=0.15.1" },
     { name = "python-dateutil", specifier = "==2.8.2" },
     { name = "python-jose", extras = ["cryptography"], specifier = "==3.3.0" },
+    { name = "python-magic", specifier = ">=0.4.27" },
     { name = "python-multipart", specifier = "==0.0.6" },
     { name = "python-quickbooks", specifier = "==0.9.12" },
     { name = "pytz", specifier = "==2023.3" },
@@ -403,6 +410,7 @@ requires-dist = [
     { name = "qrcode", extras = ["pil"], specifier = ">=7.4.2" },
     { name = "redis", specifier = "==5.0.1" },
     { name = "reportlab", specifier = ">=4.4.4" },
+    { name = "rich", specifier = ">=14.2.0" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = "==1.40.0" },
     { name = "sqlalchemy", specifier = "==2.0.23" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.24.0" },
@@ -1096,6 +1104,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/99/55/181022996c4063fc0e7666a47049a1ca705abb9c8a13830f074edb347495/cryptography-46.0.3-pp311-pypy311_pp73-manylinux_2_34_aarch64.whl", hash = "sha256:9394673a9f4de09e28b5356e7fff97d778f8abad85c9d5ac4a4b7e25a0de7717", size = 4242957, upload-time = "2025-10-15T23:18:22.18Z" },
     { url = "https://files.pythonhosted.org/packages/ba/af/72cd6ef29f9c5f731251acadaeb821559fe25f10852f44a63374c9ca08c1/cryptography-46.0.3-pp311-pypy311_pp73-manylinux_2_34_x86_64.whl", hash = "sha256:94cd0549accc38d1494e1f8de71eca837d0509d0d44bf11d158524b0e12cebf9", size = 4409447, upload-time = "2025-10-15T23:18:24.209Z" },
     { url = "https://files.pythonhosted.org/packages/0d/c3/e90f4a4feae6410f914f8ebac129b9ae7a8c92eb60a638012dde42030a9d/cryptography-46.0.3-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:6b5063083824e5509fdba180721d55909ffacccc8adbec85268b48439423d78c", size = 3438528, upload-time = "2025-10-15T23:18:26.227Z" },
+]
+
+[[package]]
+name = "deprecated"
+version = "1.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/49/85/12f0a49a7c4ffb70572b6c2ef13c90c88fd190debda93b23f026b25f9634/deprecated-1.3.1.tar.gz", hash = "sha256:b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223", size = 2932523, upload-time = "2025-10-30T08:19:02.757Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/84/d0/205d54408c08b13550c733c4b85429e7ead111c7f0014309637425520a9a/deprecated-1.3.1-py2.py3-none-any.whl", hash = "sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f", size = 11298, upload-time = "2025-10-30T08:19:00.758Z" },
 ]
 
 [[package]]
@@ -2477,6 +2497,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "memory-profiler"
+version = "0.61.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "psutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b2/88/e1907e1ca3488f2d9507ca8b0ae1add7b1cd5d3ca2bc8e5b329382ea2c7b/memory_profiler-0.61.0.tar.gz", hash = "sha256:4e5b73d7864a1d1292fb76a03e82a3e78ef934d06828a698d9dada76da2067b0", size = 35935, upload-time = "2022-11-15T17:57:28.994Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/26/aaca612a0634ceede20682e692a6c55e35a94c21ba36b807cc40fe910ae1/memory_profiler-0.61.0-py3-none-any.whl", hash = "sha256:400348e61031e3942ad4d4109d18753b2fb08c2f6fb8290671c5513a34182d84", size = 31803, upload-time = "2022-11-15T17:57:27.031Z" },
 ]
 
 [[package]]
@@ -4248,6 +4280,15 @@ wheels = [
 [package.optional-dependencies]
 cryptography = [
     { name = "cryptography" },
+]
+
+[[package]]
+name = "python-magic"
+version = "0.4.27"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/db/0b3e28ac047452d079d375ec6798bf76a036a08182dbb39ed38116a49130/python-magic-0.4.27.tar.gz", hash = "sha256:c1ba14b08e4a5f5c31a302b7721239695b2f0f058d125bd5ce1ee36b9d9d3c3b", size = 14677, upload-time = "2022-06-07T20:16:59.508Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/73/9f872cb81fc5c3bb48f7227872c28975f998f3e7c2b1c16e95e6432bbb90/python_magic-0.4.27-py2.py3-none-any.whl", hash = "sha256:c212960ad306f700aa0d01e5d7a325d20548ff97eb9920dcd29513174f0294d3", size = 13840, upload-time = "2022-06-07T20:16:57.763Z" },
 ]
 
 [[package]]

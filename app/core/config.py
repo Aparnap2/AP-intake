@@ -5,7 +5,7 @@ Application configuration settings.
 import os
 from typing import List, Optional
 
-from pydantic import validator
+from pydantic import field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -26,7 +26,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     ALLOWED_HOSTS: List[str] = ["*"]
 
-    @validator("ALLOWED_HOSTS", pre=True)
+    @field_validator("ALLOWED_HOSTS", mode="before")
+    @classmethod
     def assemble_cors_origins(cls, v):
         """Parse CORS origins from comma-separated string."""
         if isinstance(v, str) and not v.startswith("["):
@@ -113,7 +114,8 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 25
     ALLOWED_FILE_TYPES: List[str] = ["pdf", "jpeg", "jpg", "png"]
 
-    @validator("ALLOWED_FILE_TYPES", pre=True)
+    @field_validator("ALLOWED_FILE_TYPES", mode="before")
+    @classmethod
     def parse_file_types(cls, v):
         """Parse allowed file types from comma-separated string."""
         if isinstance(v, str):
@@ -125,6 +127,23 @@ class Settings(BaseSettings):
     WORKER_PREFETCH_MULTIPLIER: int = 1
     WORKER_TASK_SOFT_TIME_LIMIT: int = 300
     WORKER_TASK_TIME_LIMIT: int = 600
+
+    # Idempotency Settings
+    IDEMPOTENCY_TTL_SECONDS: int = 24 * 3600  # 24 hours
+    IDEMPOTENCY_MAX_EXECUTIONS: int = 3
+    IDEMPOTENCY_CLEANUP_HOURS: int = 1
+    IDEMPOTENCY_CACHE_PREFIX: str = "idempotency"
+    IDEMPOTENCY_ENABLE_METRICS: bool = True
+
+    # Staging Settings
+    STAGING_QUALITY_THRESHOLD: int = 70
+    STAGING_APPROVAL_TIMEOUT_HOURS: int = 72
+    STAGING_MAX_BATCH_SIZE: int = 1000
+    STAGING_ENABLE_DIFF_TRACKING: bool = True
+    STAGING_ENABLE_APPROVAL_CHAINS: bool = True
+    STAGING_DEFAULT_PRIORITY: int = 5
+    STAGING_COMPLIANCE_FLAGS: List[str] = ["SOX", "GDPR", "FINANCIAL"]
+    STAGING_ENABLE_ROLLBACK: bool = True
 
     # Observability
     SENTRY_DSN: Optional[str] = None
@@ -145,7 +164,8 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
-    @validator("LOG_LEVEL", pre=True)
+    @field_validator("LOG_LEVEL", mode="before")
+    @classmethod
     def validate_log_level(cls, v):
         """Validate log level."""
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -176,10 +196,72 @@ class Settings(BaseSettings):
     N8N_EXCEPTION_HANDLING_WORKFLOW_ID: str = "exception_handling"
     N8N_WEEKLY_REPORT_WORKFLOW_ID: str = "weekly_report_generation"
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"  # Ignore extra fields in .env
+    # Swappable Integration Configuration
+    # Master switch for using swappable integration system
+    USE_SWAPPABLE_INTEGRATION: bool = True
+
+    # Integration system configuration
+    INTEGRATION_DEFAULT_PROVIDER: str = "native"  # native, n8n, quickbooks
+    INTEGRATION_FALLBACK_ENABLED: bool = True
+    INTEGRATION_AUTO_FAILOVER: bool = True
+    INTEGRATION_CIRCUIT_BREAKER_ENABLED: bool = True
+    INTEGRATION_CIRCUIT_BREAKER_THRESHOLD: int = 5
+    INTEGRATION_CIRCUIT_BREAKER_TIMEOUT: int = 300
+
+    # Provider-specific configuration
+    USE_N8N: bool = False  # Legacy switch for backward compatibility
+    N8N_PROVIDER_ENABLED: bool = False
+    N8N_PROVIDER_PRIORITY: int = 10
+    N8N_PROVIDER_HEALTH_CHECK_INTERVAL: int = 60
+
+    USE_NATIVE_PROVIDER: bool = True
+    NATIVE_PROVIDER_ENABLED: bool = True
+    NATIVE_PROVIDER_PRIORITY: int = 1
+    NATIVE_PROVIDER_MAX_CONCURRENT_WORKFLOWS: int = 100
+
+    # Integration monitoring and metrics
+    INTEGRATION_MONITORING_ENABLED: bool = True
+    INTEGRATION_METRICS_RETENTION_DAYS: int = 30
+    INTEGRATION_HEALTH_CHECK_INTERVAL: int = 60
+
+    @field_validator("INTEGRATION_DEFAULT_PROVIDER", mode="before")
+    @classmethod
+    def validate_default_provider(cls, v):
+        """Validate default provider is supported."""
+        valid_providers = ["native", "n8n", "quickbooks"]
+        if v not in valid_providers:
+            raise ValueError(f"Default provider must be one of {valid_providers}")
+        return v
+
+    @field_validator("INTEGRATION_CIRCUIT_BREAKER_THRESHOLD", mode="before")
+    @classmethod
+    def validate_circuit_breaker_threshold(cls, v):
+        """Validate circuit breaker threshold."""
+        if v < 1 or v > 100:
+            raise ValueError("Circuit breaker threshold must be between 1 and 100")
+        return v
+
+    @field_validator("N8N_PROVIDER_PRIORITY", "NATIVE_PROVIDER_PRIORITY", mode="before")
+    @classmethod
+    def validate_provider_priority(cls, v):
+        """Validate provider priority."""
+        if v < 1 or v > 100:
+            raise ValueError("Provider priority must be between 1 and 100")
+        return v
+
+    @field_validator("NATIVE_PROVIDER_MAX_CONCURRENT_WORKFLOWS", mode="before")
+    @classmethod
+    def validate_max_concurrent_workflows(cls, v):
+        """Validate max concurrent workflows."""
+        if v < 1 or v > 1000:
+            raise ValueError("Max concurrent workflows must be between 1 and 1000")
+        return v
+
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"  # Ignore extra fields in .env
+    )
 
 
 # Create settings instance

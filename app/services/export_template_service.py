@@ -123,7 +123,7 @@ class ExportTemplateService:
             name="Standard CSV Export",
             description="Standard CSV export with basic invoice fields",
             format=ExportFormat.CSV,
-            field_mappings=[m.dict() for m in field_mappings],
+            field_mappings=[m.model_dump() for m in field_mappings],
             header_config={
                 "title": "Invoice Export Report",
                 "date": True,
@@ -180,7 +180,7 @@ class ExportTemplateService:
             name="Detailed JSON Export",
             description="Complete JSON export with all invoice data and metadata",
             format=ExportFormat.JSON,
-            field_mappings=[m.dict() for m in field_mappings],
+            field_mappings=[m.model_dump() for m in field_mappings],
             header_config={
                 "include_metadata": True,
                 "include_system_info": True
@@ -253,7 +253,7 @@ class ExportTemplateService:
             name="Accounting CSV Export",
             description="Accounting-focused CSV export with financial fields",
             format=ExportFormat.CSV,
-            field_mappings=[m.dict() for m in field_mappings],
+            field_mappings=[m.model_dump() for m in field_mappings],
             header_config={
                 "title": "Accounts Payable Export",
                 "date": True,
@@ -320,7 +320,7 @@ class ExportTemplateService:
             name="QuickBooks Export",
             description="QuickBooks-compatible export format",
             format=ExportFormat.JSON,
-            field_mappings=[m.dict() for m in field_mappings],
+            field_mappings=[m.model_dump() for m in field_mappings],
             header_config={
                 "quickbooks_format": True,
                 "api_version": "v3"

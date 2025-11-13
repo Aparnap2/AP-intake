@@ -81,7 +81,10 @@ def process_export_job(self, job_id: str):
 
             return {"status": "completed", "job_id": job_id}
 
-        except Exception as e:
+        finally:
+            db.close()
+
+    except Exception as e:
             logger.error(f"Error processing export job {job_id}: {e}")
             # Mark job as failed
             job = db.query(ExportJob).filter(ExportJob.id == job_id).first()
@@ -488,13 +491,6 @@ def generate_export_report(report_type: str = "daily"):
         except Exception as e:
             logger.error(f"Error generating {report_type} export report: {e}")
             return {"status": "error", "message": str(e)}
-
-        finally:
-            db.close()
-
-    except Exception as e:
-        logger.error(f"Fatal error in export report generation: {e}")
-        return {"status": "error", "message": str(e)}
 
         finally:
             db.close()

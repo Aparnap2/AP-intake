@@ -9,6 +9,9 @@ from .invoice import (
     Exception,
     StagedExport,
 )
+from .dlq import (
+    DeadLetterQueue,
+)
 from .reference import Vendor, PurchaseOrder, GoodsReceiptNote
 from .ar_invoice import (
     Customer,
@@ -51,6 +54,7 @@ __all__ = [
     "Validation",
     "Exception",
     "StagedExport",
+    "DeadLetterQueue",
     "Vendor",
     "PurchaseOrder",
     "GoodsReceiptNote",

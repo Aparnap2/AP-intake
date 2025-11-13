@@ -73,7 +73,7 @@ async def detailed_health_check(db: Session = Depends(get_db)):
         }
         health_status["status"] = "unhealthy"
 
-      return health_status
+    return health_status
 
 
 @router.get("/metrics")

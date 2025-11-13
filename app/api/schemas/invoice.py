@@ -78,6 +78,18 @@ class InvoiceResponse(InvoiceBase):
     def serialize_uploaded_at(self, value: Optional[datetime]) -> Optional[str]:
         return value.isoformat() if value else None
 
+    @field_serializer('created_at')
+    def serialize_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer('updated_at')
+    def serialize_updated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer('status')
+    def serialize_status(self, value: InvoiceStatus) -> str:
+        return value.value
+
     class Config:
         from_attributes = True
 

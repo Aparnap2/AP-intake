@@ -51,6 +51,8 @@ celery_app.conf.update(
         "app.workers.invoice_tasks.validate_invoice_task": {"queue": "validation"},
         "app.workers.invoice_tasks.export_invoice_task": {"queue": "export"},
         "app.workers.email_tasks.process_email_task": {"queue": "email_processing"},
+        "app.workers.dlq_handlers.*": {"queue": "dlq_processing"},
+        "app.workers.redrive_tasks.*": {"queue": "dlq_redrive"},
     },
 
     # Queue configuration
@@ -59,6 +61,8 @@ celery_app.conf.update(
         Queue("validation", routing_key="validation"),
         Queue("export", routing_key="export"),
         Queue("email_processing", routing_key="email_processing"),
+        Queue("dlq_processing", routing_key="dlq_processing"),
+        Queue("dlq_redrive", routing_key="dlq_redrive"),
         Queue("celery", routing_key="celery"),  # Default queue
     ),
 
@@ -132,6 +136,9 @@ if not os.environ.get("FORKED_BY_MULTIPROCESSING"):
 
 # Configure signals for task monitoring
 from celery.signals import task_prerun, task_postrun, task_failure, task_success
+
+# Import DLQ error handlers to register signals
+from app.workers.dlq_handlers import error_handler
 
 
 @task_prerun.connect

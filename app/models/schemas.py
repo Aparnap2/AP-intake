@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import List, Optional, Dict, Any, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, ValidationInfo, ValidationError, model_validator
+from pydantic import BaseModel, Field, field_validator, ValidationInfo, ValidationError, model_validator, ConfigDict
 from pydantic.types import condecimal, constr
 
 

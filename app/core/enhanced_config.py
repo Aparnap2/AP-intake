@@ -6,7 +6,7 @@ import secrets
 from typing import Dict, List, Optional, Union
 from datetime import datetime, timedelta
 
-from pydantic import validator, Field
+from pydantic import Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -52,7 +52,8 @@ class SecurityConfig(BaseSettings):
     max_login_attempts: int = 5
     lockout_duration_minutes: int = 15
 
-    @validator("CORS_ORIGINS", pre=True)
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
     def assemble_cors_origins(cls, v):
         """Parse CORS origins from comma-separated string."""
         if isinstance(v, str) and not v.startswith("["):
@@ -292,7 +293,8 @@ class EnhancedSettings(BaseSettings):
     enable_structured_logging: bool = True
 
     # Environment-specific overrides
-    @validator("environment")
+    @field_validator("environment")
+    @classmethod
     def validate_environment(cls, v):
         """Validate environment setting."""
         valid_envs = ["development", "staging", "production"]
@@ -300,7 +302,8 @@ class EnhancedSettings(BaseSettings):
             raise ValueError(f"Environment must be one of {valid_envs}")
         return v.lower()
 
-    @validator("log_level")
+    @field_validator("log_level")
+    @classmethod
     def validate_log_level(cls, v):
         """Validate log level."""
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -308,7 +311,8 @@ class EnhancedSettings(BaseSettings):
             raise ValueError(f"Log level must be one of {valid_levels}")
         return v.upper()
 
-    @validator("secret_key")
+    @field_validator("secret_key")
+    @classmethod
     def validate_secret_key(cls, v):
         """Validate secret key strength."""
         if len(v) < 32:
@@ -375,14 +379,13 @@ class EnhancedSettings(BaseSettings):
         }
         return service_configs.get(service, service_configs["default"])
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"  # Ignore extra fields in .env
-
-        # Pydantic v2 configuration
-        validate_assignment = True
-        use_enum_values = True
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",  # Ignore extra fields in .env
+        validate_assignment=True,
+        use_enum_values=True
+    )
 
 
 # Create enhanced settings instance

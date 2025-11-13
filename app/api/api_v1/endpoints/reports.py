@@ -18,10 +18,16 @@ from app.models.reports import (
     ExceptionAnalysis, ProcessingMetric
 )
 from app.models.user import User
-from app.services.weekly_report_service import WeeklyReportService
+from app.services.weekly_report_service import WeeklyReportService, CFODigestService
 from app.services.email_report_service import EmailReportService
 from app.services.analytics_engine import AnalyticsEngine
+from app.services.n8n_service import N8nService
 from app.core.logging import get_logger
+from app.api.schemas.digest import (
+    CFODigestRequest, CFODigestResponse, CFODigestListResponse,
+    CFODigestScheduleRequest, CFODigestScheduleResponse,
+    DigestPriority, BusinessImpactLevel
+)
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -800,3 +806,328 @@ async def _generate_csv_export(report: WeeklyReport) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to generate CSV export: {e}")
         return {"error": "Failed to generate CSV export"}
+
+
+# CFO Digest Endpoints
+
+@router.post("/cfo-digest/generate", response_model=CFODigestResponse)
+async def generate_cfo_digest(
+    request: CFODigestRequest,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    session: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user),
+) -> CFODigestResponse:
+    """Generate Monday 9am CFO Digest with executive insights and evidence links."""
+    try:
+        logger.info(f"Generating CFO digest for user: {current_user.email}")
+
+        # Initialize services
+        cfo_digest_service = CFODigestService(session)
+        n8n_service = N8nService()
+
+        # Generate digest
+        digest = await cfo_digest_service.generate_monday_digest(
+            request=request,
+            generated_by=current_user.email
+        )
+
+        # Save digest to database
+        digest_id = await cfo_digest_service.save_digest_to_database(digest)
+
+        # Schedule delivery if requested
+        if request.schedule_delivery and request.recipients:
+            n8n_request = await cfo_digest_service.create_n8n_workflow_request(digest)
+
+            # Schedule background task for N8n workflow
+            background_tasks.add_task(
+                n8n_service.schedule_monday_digest,
+                n8n_request
+            )
+
+        return CFODigestResponse(
+            success=True,
+            digest_id=digest_id,
+            message="Monday CFO Digest generated successfully",
+            data={
+                "title": digest.title,
+                "week_start": digest.week_start.isoformat(),
+                "week_end": digest.week_end.isoformat(),
+                "delivery_scheduled_at": digest.delivery_scheduled_at.isoformat() if digest.delivery_scheduled_at else None,
+                "total_metrics": len(digest.key_metrics),
+                "total_action_items": len(digest.action_items)
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to generate CFO digest: {e}")
+        return CFODigestResponse(
+            success=False,
+            message=f"Failed to generate CFO digest: {str(e)}",
+            errors=[str(e)]
+        )
+
+
+@router.get("/cfo-digest/schedule", response_model=CFODigestScheduleResponse)
+async def get_cfo_digest_schedule(
+    session: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user),
+) -> CFODigestScheduleResponse:
+    """Get current Monday CFO Digest schedule configuration."""
+    try:
+        # This would retrieve from database - placeholder implementation
+        schedule_data = {
+            "is_active": True,
+            "delivery_day": "monday",
+            "delivery_time": "09:00",
+            "recipients": ["cfo@company.com", "finance-team@company.com"],
+            "priority_threshold": "medium",
+            "business_impact_threshold": "moderate"
+        }
+
+        # Calculate next delivery
+        today = datetime.now(timezone.utc)
+        days_until_monday = (7 - today.weekday()) % 7 or 7
+        next_delivery = today + timedelta(days=days_until_monday)
+        next_monday_9am = next_delivery.replace(hour=9, minute=0, second=0, microsecond=0)
+
+        return CFODigestScheduleResponse(
+            success=True,
+            schedule_id="default_schedule",
+            message="Monday CFO Digest schedule retrieved successfully",
+            next_delivery=next_monday_9am.isoformat()
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to get CFO digest schedule: {e}")
+        return CFODigestScheduleResponse(
+            success=False,
+            message=f"Failed to get schedule: {str(e)}"
+        )
+
+
+@router.post("/cfo-digest/schedule", response_model=CFODigestScheduleResponse)
+async def update_cfo_digest_schedule(
+    request: CFODigestScheduleRequest,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    session: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user),
+) -> CFODigestScheduleResponse:
+    """Update Monday CFO Digest schedule configuration."""
+    try:
+        logger.info(f"Updating CFO digest schedule for user: {current_user.email}")
+
+        # Initialize N8n service
+        n8n_service = N8nService()
+
+        # Setup schedule with N8n workflow
+        schedule_config = request.model_dump()
+        schedule_response = await n8n_service.setup_monday_digest_schedule(schedule_config)
+
+        # Calculate next delivery
+        today = datetime.now(timezone.utc)
+        days_until_monday = (7 - today.weekday()) % 7 or 7
+        next_delivery = today + timedelta(days=days_until_monday)
+        next_monday_9am = next_delivery.replace(hour=9, minute=0, second=0, microsecond=0)
+
+        return CFODigestScheduleResponse(
+            success=True,
+            schedule_id="updated_schedule",
+            message="Monday CFO Digest schedule updated successfully",
+            next_delivery=next_monday_9am.isoformat()
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to update CFO digest schedule: {e}")
+        return CFODigestScheduleResponse(
+            success=False,
+            message=f"Failed to update schedule: {str(e)}"
+        )
+
+
+@router.get("/cfo-digest/{digest_id}")
+async def get_cfo_digest(
+    digest_id: str,
+    session: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get a specific CFO digest by ID."""
+    try:
+        logger.info(f"Retrieving CFO digest: {digest_id}")
+
+        # Initialize service
+        cfo_digest_service = CFODigestService(session)
+
+        # Get digest
+        digest = await cfo_digest_service.get_digest_by_id(digest_id)
+        if not digest:
+            raise HTTPException(status_code=404, detail="CFO Digest not found")
+
+        return {
+            "success": True,
+            "data": digest.model_dump(),
+            "message": "CFO Digest retrieved successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get CFO digest: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/cfo-digest", response_model=CFODigestListResponse)
+async def list_cfo_digests(
+    limit: int = Query(10, ge=1, le=52, description="Number of digests to return"),
+    page: int = Query(1, ge=1, description="Page number"),
+    session: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user),
+) -> CFODigestListResponse:
+    """List recent CFO digests."""
+    try:
+        logger.info(f"Listing CFO digests for user: {current_user.email}")
+
+        # Initialize service
+        cfo_digest_service = CFODigestService(session)
+
+        # Get digests
+        digests = await cfo_digest_service.list_recent_digests(limit)
+
+        # Pagination logic
+        page_size = limit
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_digests = digests[start_idx:end_idx]
+
+        return CFODigestListResponse(
+            digests=paginated_digests,
+            total_count=len(digests),
+            page=page,
+            page_size=page_size,
+            has_more=end_idx < len(digests)
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to list CFO digests: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cfo-digest/{digest_id}/schedule-delivery")
+async def schedule_cfo_digest_delivery(
+    digest_id: str,
+    recipients: List[str] = Query(..., description="List of recipient email addresses"),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    session: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Schedule delivery of an existing CFO digest."""
+    try:
+        logger.info(f"Scheduling delivery for CFO digest: {digest_id}")
+
+        # Initialize services
+        cfo_digest_service = CFODigestService(session)
+        n8n_service = N8nService()
+
+        # Get digest
+        digest = await cfo_digest_service.get_digest_by_id(digest_id)
+        if not digest:
+            raise HTTPException(status_code=404, detail="CFO Digest not found")
+
+        # Update recipients and schedule delivery
+        digest.recipients = recipients
+        n8n_request = await cfo_digest_service.create_n8n_workflow_request(digest)
+
+        # Schedule background task
+        background_tasks.add_task(
+            n8n_service.schedule_monday_digest,
+            n8n_request
+        )
+
+        return {
+            "success": True,
+            "message": f"CFO Digest {digest_id} scheduled for delivery",
+            "recipients": recipients,
+            "scheduled_for": "Monday 9:00 AM"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to schedule CFO digest delivery: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/cfo-digest/{digest_id}/cancel")
+async def cancel_cfo_digest(
+    digest_id: str,
+    reason: Optional[str] = Query(None, description="Cancellation reason"),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    session: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Cancel scheduled CFO digest."""
+    try:
+        logger.info(f"Cancelling CFO digest: {digest_id}")
+
+        # Initialize N8n service
+        n8n_service = N8nService()
+
+        # Cancel digest in background
+        background_tasks.add_task(
+            n8n_service.cancel_monday_digest,
+            digest_id,
+            reason
+        )
+
+        return {
+            "success": True,
+            "message": f"CFO Digest {digest_id} cancellation requested",
+            "reason": reason or "No reason provided"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to cancel CFO digest: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cfo-digest/trigger")
+async def trigger_cfo_digest_generation(
+    week_start: Optional[str] = Query(None, description="ISO format date for week start"),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    session: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Trigger immediate CFO digest generation."""
+    try:
+        logger.info(f"Triggering CFO digest generation for user: {current_user.email}")
+
+        # Parse week start date
+        week_start_dt = None
+        if week_start:
+            try:
+                week_start_dt = datetime.fromisoformat(week_start.replace('Z', '+00:00'))
+                if week_start_dt.tzinfo is None:
+                    week_start_dt = week_start_dt.replace(tzinfo=timezone.utc)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format. Use ISO format.")
+
+        # Initialize N8n service
+        n8n_service = N8nService()
+
+        # Trigger generation in background
+        background_tasks.add_task(
+            n8n_service.trigger_monday_digest_generation,
+            week_start_dt
+        )
+
+        return {
+            "success": True,
+            "message": "CFO Digest generation triggered successfully",
+            "week_start": week_start_dt.isoformat() if week_start_dt else "Last week",
+            "delivery_target": "Monday 9:00 AM"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to trigger CFO digest generation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

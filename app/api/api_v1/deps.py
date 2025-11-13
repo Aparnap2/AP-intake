@@ -4,15 +4,31 @@ Dependencies for API endpoints (authentication, authorization, etc.).
 
 from typing import Optional
 from fastapi import Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.session import get_db
 from app.models.user import User
 
 
+async def get_async_session() -> AsyncSession:
+    """Get async database session."""
+    # This is a placeholder - in a real implementation, this would
+    # create and return an async session from the database pool
+    from app.db.session import AsyncSessionLocal
+    return AsyncSessionLocal()
+
+
+def get_db() -> Session:
+    """Get synchronous database session."""
+    # This is a placeholder - in a real implementation, this would
+    # create and return a sync session from the database pool
+    from app.db.session import SessionLocal
+    return SessionLocal()
+
+
 def get_current_user(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> Optional[User]:
     """Get current authenticated user."""
     # This is a placeholder for now
@@ -26,7 +42,7 @@ def get_current_user(
 
 
 def get_current_user_optional(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> Optional[User]:
     """Get current user (optional)."""
     return get_current_user(db)

@@ -37,6 +37,7 @@ from app.models.reference import Vendor
 from app.services.ingestion_service import IngestionService
 from app.services.deduplication_service import DeduplicationService
 from app.services.signed_url_service import SignedUrlService
+from app.services.idempotency_service import IdempotencyService, IdempotencyOperationType
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -46,6 +47,7 @@ router = APIRouter()
 ingestion_service = IngestionService()
 deduplication_service = DeduplicationService()
 signed_url_service = SignedUrlService()
+idempotency_service = IdempotencyService()
 
 
 @router.post("/upload", response_model=IngestionResponse)
@@ -55,11 +57,12 @@ async def upload_file(
     source_type: str = Query("upload", description="Source type (upload, email, api)"),
     source_reference: Optional[str] = Query(None, description="Source reference ID"),
     uploaded_by: Optional[str] = Query(None, description="User who uploaded the file"),
+    idempotency_key: Optional[str] = Query(None, description="Client-provided idempotency key"),
     db: AsyncSession = Depends(get_db),
     request: Request = None,
 ):
     """
-    Upload and ingest a file with comprehensive hashing and deduplication.
+    Upload and ingest a file with comprehensive hashing, deduplication, and idempotency.
 
     This endpoint provides robust file ingestion with:
     - SHA-256 file hashing for content integrity
@@ -67,6 +70,7 @@ async def upload_file(
     - Secure storage with signed URLs
     - Comprehensive metadata extraction
     - Background processing queuing
+    - Idempotency to prevent duplicate uploads
     """
     logger.info(f"Uploading file: {file.filename} (size: {file.size or 'unknown'})")
 
@@ -75,9 +79,70 @@ async def upload_file(
         if not file.filename:
             raise HTTPException(status_code=400, detail="Filename is required")
 
+        # Read file content for hashing and idempotency key generation
+        file_content = await file.read()
+        await file.seek(0)  # Reset file pointer for later processing
+
+        # Calculate file hash for idempotency
+        import hashlib
+        file_hash = hashlib.sha256(file_content).hexdigest()
+
+        # Generate idempotency key if not provided
+        if not idempotency_key:
+            idempotency_key = idempotency_service.generate_idempotency_key(
+                operation_type=IdempotencyOperationType.INVOICE_UPLOAD,
+                vendor_id=vendor_id,
+                file_hash=file_hash,
+                user_id=uploaded_by,
+                additional_context={
+                    "filename": file.filename,
+                    "source_type": source_type,
+                }
+            )
+
+        # Check for existing idempotency record
+        existing_record, is_new = await idempotency_service.check_and_create_idempotency_record(
+            db=db,
+            idempotency_key=idempotency_key,
+            operation_type=IdempotencyOperationType.INVOICE_UPLOAD,
+            operation_data={
+                "filename": file.filename,
+                "vendor_id": vendor_id,
+                "source_type": source_type,
+                "source_reference": source_reference,
+                "uploaded_by": uploaded_by,
+                "file_hash": file_hash,
+            },
+            user_id=uploaded_by,
+            client_ip=request.client.host if request else None,
+        )
+
+        if not is_new:
+            # Return existing operation result
+            if existing_record.operation_status.value == "completed":
+                logger.info(f"Returning existing ingestion result for idempotency key: {idempotency_key}")
+                return IngestionResponse(**existing_record.result_data)
+            elif existing_record.operation_status.value == "in_progress":
+                raise HTTPException(
+                    status_code=409,
+                    detail="File upload is already in progress with the same idempotency key"
+                )
+            else:
+                # Check if we can retry failed operation
+                if existing_record.execution_count < existing_record.max_executions:
+                    await idempotency_service.mark_operation_started(db, idempotency_key)
+                else:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"File upload with idempotency key has failed and exceeded retry limit"
+                    )
+        else:
+            # Mark new operation as started
+            await idempotency_service.mark_operation_started(db, idempotency_key)
+
         # Ingest file with comprehensive processing
         ingestion_result = await ingestion_service.ingest_file(
-            file_content=file.file,
+            file_content=file_content,
             filename=file.filename,
             content_type=file.content_type,
             vendor_id=vendor_id,
@@ -89,25 +154,44 @@ async def upload_file(
         )
 
         # Transform to response model
-        response = IngestionResponse(
-            id=ingestion_result["ingestion_job_id"],
-            original_filename=file.filename,
-            file_size_bytes=ingestion_result["file_size"],
-            file_hash_sha256=ingestion_result["file_hash"],
-            status=ingestion_result["status"],
-            storage_path=ingestion_result["storage_path"],
-            duplicate_analysis=ingestion_result.get("duplicate_analysis", {}),
-            created_at=datetime.now(timezone.utc),
-            estimated_processing_time_seconds=ingestion_result.get("estimated_processing_time", 0),
-        )
+        response_data = {
+            "id": ingestion_result["ingestion_job_id"],
+            "original_filename": file.filename,
+            "file_size_bytes": ingestion_result["file_size"],
+            "file_hash_sha256": ingestion_result["file_hash"],
+            "status": ingestion_result["status"],
+            "storage_path": ingestion_result["storage_path"],
+            "duplicate_analysis": ingestion_result.get("duplicate_analysis", {}),
+            "created_at": datetime.now(timezone.utc),
+            "estimated_processing_time_seconds": ingestion_result.get("estimated_processing_time", 0),
+            "idempotency_key": idempotency_key,
+        }
+
+        response = IngestionResponse(**response_data)
+
+        # Mark operation as completed
+        await idempotency_service.mark_operation_completed(db, idempotency_key, response_data)
 
         logger.info(f"Successfully uploaded file {file.filename} as job {ingestion_result['ingestion_job_id']}")
         return response
 
+    except HTTPException:
+        # Mark operation as failed if we have an idempotency key
+        if 'idempotency_key' in locals():
+            await idempotency_service.mark_operation_failed(
+                db, idempotency_key, {"error": str(e.detail)}
+            )
+        raise
     except IngestionException as e:
+        # Mark operation as failed
+        if 'idempotency_key' in locals():
+            await idempotency_service.mark_operation_failed(db, idempotency_key, {"error": str(e)})
         logger.error(f"Ingestion error for file {file.filename}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        # Mark operation as failed
+        if 'idempotency_key' in locals():
+            await idempotency_service.mark_operation_failed(db, idempotency_key, {"error": str(e)})
         logger.error(f"Unexpected error uploading file {file.filename}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 

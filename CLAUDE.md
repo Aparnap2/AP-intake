@@ -8,21 +8,36 @@ This file provides comprehensive guidance to Claude Code (claude.ai/code) when w
 AP Intake & Validation is a comprehensive invoice processing system that transforms PDF invoices into structured, validated data ready for ERP import. The system uses advanced AI/ML technologies including Docling for intelligent document extraction, LangGraph for workflow orchestration, and includes a React frontend with FastAPI backend.
 
 ### Development History
-- **Initial Implementation**: Production-ready AP Intake & Validation system with core invoice processing capabilities
+- **Initial Implementation**: Core AP Intake & Validation system with invoice processing pipeline
 - **Enhanced Extraction**: Added per-field confidence scoring, PDF bbox coordinates, and field-level lineage tracking
 - **LLM Integration**: Implemented OpenRouter support for intelligent field patching with cost optimization
 - **Exception Management**: Built comprehensive exception handling system with 17 reason codes and resolution workflows
 - **Schema System**: Created data contracts and JSON schema management with versioning
-- **Observability**: Added comprehensive monitoring, SLO tracking, and runbook automation
-- **Production Readiness**: Achieved 95% production readiness score with enterprise-grade security and scalability
+- **Security Hardening**: Added JWT authentication, security headers, XSS prevention, and rate limiting
+- **Production Assessment**: Comprehensive multi-agent testing revealed strengths and gaps
 
 ### Current System State
-- **Production Status**: PRODUCTION READY with 95% readiness score
-- **Architecture**: Microservices-based with Kubernetes deployment capability
-- **Processing Capacity**: 20,000 invoices/month with 85% automation rate
-- **Performance**: <200ms response times, 99.9% uptime target
-- **Security**: Enterprise-grade with zero critical vulnerabilities
-- **Scalability**: Horizontal auto-scaling with multi-AZ deployment
+- **Status**: GOVERNED AP INTAKE PILOT - Core infrastructure working, needs production hardening
+- **Architecture**: FastAPI + React with async processing, LangGraph workflows, Celery workers
+- **Security Foundation**: JWT auth, security headers, input validation, rate limiting implemented
+- **Processing Pipeline**: PDF upload → AI extraction → validation → human review → export (working)
+- **Gap Areas**: Performance metrics, reliability primitives, business intelligence, enterprise controls
+
+### 7-Day Production Hardening Plan (IN PROGRESS)
+**Day 1-2**: Idempotency keys and staging tables
+**Day 3**: Dead letter queues and redrive UI
+**Day 4**: Policy gates and role-based approvals
+**Day 5**: CFO digest and SLO metrics dashboard
+**Day 6**: Performance instrumentation and load testing
+**Day 7**: Test harness and production demo
+
+### Pilot SLO Targets (TO BE PROVEN)
+- **P50 Time-to-Ready**: ≤ 2 hours (current: unmeasured)
+- **Structural + Math Pass Rate**: ≥ 80% (current: unmeasured)
+- **Duplicate Recall**: ≥ 95% (current: unmeasured)
+- **Weekly CFO Digest**: Monday 9am delivery (to be implemented)
+- **API Response P95**: < 500ms (to be measured)
+- **System Availability**: 99% (to be achieved)
 
 ## Architecture & Components
 

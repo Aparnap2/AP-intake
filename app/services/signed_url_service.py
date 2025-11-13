@@ -193,8 +193,8 @@ class SignedUrlService:
         self,
         signed_url_id: str,
         revoked_by: str,
-        reason: Optional[str] = None,
         db: AsyncSession,
+        reason: Optional[str] = None,
     ) -> bool:
         """
         Revoke a signed URL.

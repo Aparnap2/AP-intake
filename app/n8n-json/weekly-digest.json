@@ -1,0 +1,197 @@
+{
+  "nodes": [
+    {
+      "id": "schedule_trigger",
+      "type": "n8n-nodes-base.cron",
+      "name": "Weekly Schedule Trigger",
+      "position": [100, 100],
+      "parameters": {
+        "cronExpression": "0 9 * * 1",
+        "timezone": "America/New_York"
+      }
+    },
+    {
+      "id": "calculate_report_dates",
+      "type": "n8n-nodes-base.function",
+      "name": "Calculate Report Dates",
+      "position": [300, 100],
+      "parameters": {
+        "functionCode": "// Calculate report date ranges\nconst today = new Date();\nconst currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.\n\n// Calculate last week's dates\nconst daysToMonday = currentDay === 0 ? 6 : currentDay - 1;\nconst lastWeekEnd = new Date(today);\nlastWeekEnd.setDate(today.getDate() - daysToMonday - 1); // Last Sunday\nlastWeekEnd.setHours(23, 59, 59, 999);\n\nconst lastWeekStart = new Date(lastWeekEnd);\nlastWeekStart.setDate(lastWeekEnd.getDate() - 6); // Previous Monday\nlastWeekStart.setHours(0, 0, 0, 0);\n\n// Calculate previous week for comparison\nconst prevWeekStart = new Date(lastWeekStart);\nprevWeekStart.setDate(prevWeekStart.getDate() - 7);\n\nconst prevWeekEnd = new Date(lastWeekEnd);\nprevWeekEnd.setDate(prevWeekEnd.getDate() - 7);\n\n// Format dates for display\nfunction formatDate(date) {\n  return date.toISOString().split('T')[0];\n}\n\nfunction formatDateRange(start, end) {\n  const options = { month: 'short', day: 'numeric', year: 'numeric' };\n  return `${start.toLocaleDateString('en-US', options)} - ${end.toLocaleDateString('en-US', options)}`;\n}\n\nreturn [{\n  json: {\n    report_date: formatDate(today),\n    report_period: formatDateRange(lastWeekStart, lastWeekEnd),\n    week_start: formatDate(lastWeekStart),\n    week_end: formatDate(lastWeekEnd),\n    comparison_week_start: formatDate(prevWeekStart),\n    comparison_week_end: formatDate(prevWeekEnd),\n    week_number: Math.ceil((lastWeekStart - new Date(lastWeekStart.getFullYear(), 0, 1)) / (7 * 24 * 60 * 60 * 1000)),\n    year: lastWeekStart.getFullYear()\n  }\n}];"
+      }
+    },
+    {
+      "id": "fetch_invoice_metrics",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Fetch Invoice Metrics",
+      "position": [500, 50],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/analytics/weekly-summary",
+        "method": "GET",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}"
+        },
+        "jsonParameters": true,
+        "options": {
+          "qs": {
+            "start_date": "={{ $json.week_start }}",
+            "end_date": "={{ $json.week_end }}",
+            "comparison_start": "={{ $json.comparison_week_start }}",
+            "comparison_end": "={{ $json.comparison_week_end }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "fetch_financial_metrics",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Fetch Financial Metrics",
+      "position": [500, 150],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/analytics/financial-summary",
+        "method": "GET",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}"
+        },
+        "jsonParameters": true,
+        "options": {
+          "qs": {
+            "period": "weekly",
+            "start_date": "={{ $json.week_start }}",
+            "end_date": "={{ $json.week_end }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "generate_report_content",
+      "type": "n8n-nodes-base.function",
+      "name": "Generate Report Content",
+      "position": [700, 100],
+      "parameters": {
+        "functionCode": "// Generate comprehensive weekly report\nconst dateInfo = $input.all().find(item => item.node.name === 'Calculate Report Dates')?.json || {};\nconst invoiceMetrics = $input.all().find(item => item.node.name === 'Fetch Invoice Metrics')?.json || {};\nconst financialMetrics = $input.all().find(item => item.node.name === 'Fetch Financial Metrics')?.json || {};\n\n// Executive Summary\nconst executiveSummary = {\n  total_invoices_processed: invoiceMetrics.total_invoices || 0,\n  total_amount_processed: invoiceMetrics.total_amount || 0,\n  average_invoice_amount: invoiceMetrics.average_amount || 0,\n  processing_efficiency: invoiceMetrics.processing_efficiency || 0,\n  exceptions_rate: invoiceMetrics.exceptions_rate || 0,\n  weekly_change: invoiceMetrics.week_over_week_change || 0\n};\n\n// AP/AR Summary\nconst apArSummary = {\n  ap_invoices: {\n    processed: invoiceMetrics.ap_processed || 0,\n    total_amount: invoiceMetrics.ap_total || 0,\n    average_processing_time: invoiceMetrics.ap_processing_time || 0,\n    on_time_rate: invoiceMetrics.ap_on_time_rate || 0\n  },\n  ar_invoices: {\n    processed: invoiceMetrics.ar_processed || 0,\n    total_amount: invoiceMetrics.ar_total || 0,\n    average_collection_time: invoiceMetrics.ar_collection_time || 0,\n    collection_rate: invoiceMetrics.ar_collection_rate || 0\n  }\n};\n\n// Financial Health Indicators\nconst financialHealth = {\n  working_capital: financialMetrics.working_capital || 0,\n  cash_conversion_cycle: financialMetrics.cash_conversion_cycle || 0,\n  days_receivable: financialMetrics.days_receivable || 0,\n  days_payable: financialMetrics.days_payable || 0,\n  liquidity_ratio: financialMetrics.liquidity_ratio || 0\n};\n\n// Top Performance Metrics\nconst topMetrics = {\n  best_performing_day: invoiceMetrics.best_day || {},\n  top_vendor: invoiceMetrics.top_vendor || {},\n  top_customer: invoiceMetrics.top_customer || {},\n  fastest_processing_time: invoiceMetrics.fastest_processing || 0,\n  most_efficient_processor: invoiceMetrics.top_processor || {}\n};\n\n// Issues and Exceptions\nconst issuesSummary = {\n  total_exceptions: invoiceMetrics.total_exceptions || 0,\n  critical_exceptions: invoiceMetrics.critical_exceptions || 0,\n  resolved_exceptions: invoiceMetrics.resolved_exceptions || 0,\n  average_resolution_time: invoiceMetrics.avg_resolution_time || 0,\n  top_exception_types: invoiceMetrics.top_exception_types || []\n};\n\n// Generate insights and recommendations\nconst insights = generateInsights(executiveSummary, apArSummary, financialHealth, issuesSummary);\nconst recommendations = generateRecommendations(insights, metrics);\n\nfunction generateInsights(executive, apAr, financial, issues) {\n  const insights = [];\n  \n  // Processing efficiency insights\n  if (executive.processing_efficiency > 0.95) {\n    insights.push({\n      type: 'positive',\n      title: 'Excellent Processing Efficiency',\n      description: `Processing efficiency at ${(executive.processing_efficiency * 100).toFixed(1)}% exceeds target of 95%`\n    });\n  } else if (executive.processing_efficiency < 0.85) {\n    insights.push({\n      type: 'concern',\n      title: 'Processing Efficiency Below Target',\n      description: `Processing efficiency at ${(executive.processing_efficiency * 100).toFixed(1)}% is below target of 85%`\n    });\n  }\n  \n  // Exception rate insights\n  if (issues.total_exceptions > 0) {\n    const exceptionRate = (issues.total_exceptions / executive.total_invoices_processed) * 100;\n    if (exceptionRate > 10) {\n      insights.push({\n        type: 'alert',\n        title: 'High Exception Rate',\n        description: `Exception rate of ${exceptionRate.toFixed(1)}% requires attention`\n      });\n    }\n  }\n  \n  // Financial health insights\n  if (financial.cash_conversion_cycle > 60) {\n    insights.push({\n      type: 'concern',\n      title: 'Extended Cash Conversion Cycle',\n      description: `Cash conversion cycle of ${financial.cash_conversion_cycle} days is longer than optimal`\n    });\n  }\n  \n  return insights;\n}\n\nfunction generateRecommendations(insights, metrics) {\n  const recommendations = [];\n  \n  insights.forEach(insight => {\n    switch (insight.type) {\n      case 'concern':\n      case 'alert':\n        if (insight.title.includes('Processing Efficiency')) {\n          recommendations.push('Review processing bottlenecks and consider workflow optimization');\n        }\n        if (insight.title.includes('Exception Rate')) {\n          recommendations.push('Implement additional validation checks and staff training');\n        }\n        if (insight.title.includes('Cash Conversion')) {\n          recommendations.push('Focus on improving collection processes and optimizing payment terms');\n        }\n        break;\n    }\n  });\n  \n  // Add standard recommendations\n  recommendations.push('Continue monitoring key performance indicators weekly');\n  recommendations.push('Share insights with relevant department heads for action items');\n  \n  return recommendations;\n}\n\n// Compile final report\nconst report = {\n  metadata: {\n    report_id: `WEEKLY-${dateInfo.year}-${dateInfo.week_number}`,\n    generated_at: new Date().toISOString(),\n    period: dateInfo.report_period,\n    generated_by: 'n8n_workflow'\n  },\n  executive_summary: executiveSummary,\n  ap_ar_summary: apArSummary,\n  financial_health: financialHealth,\n  top_metrics: topMetrics,\n  issues_summary: issuesSummary,\n  insights: insights,\n  recommendations: recommendations,\n  charts: {\n    invoice_volume_trend: generateChartConfig('volume', invoiceMetrics.daily_data || []),\n    processing_efficiency_trend: generateChartConfig('efficiency', invoiceMetrics.daily_data || []),\n    exception_types_distribution: generateChartConfig('exceptions', issues.top_exception_types || [])\n  }\n};\n\nfunction generateChartConfig(type, data) {\n  return {\n    type: type === 'exceptions' ? 'pie' : 'line',\n    data: data,\n    title: type === 'volume' ? 'Daily Invoice Volume' : \n           type === 'efficiency' ? 'Processing Efficiency Trend' : \n           'Exception Types Distribution',\n    colors: type === 'exceptions' ? ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'] : ['#3498db']\n  };\n}\n\nreturn [{\n  json: {\n    ...dateInfo,\n    report: report,\n    status: 'generated'\n  }\n}];"
+      }
+    },
+    {
+      "id": "create_pdf_report",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Create PDF Report",
+      "position": [900, 100],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/reports/generate-pdf",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"report_data\": \"={{ JSON.stringify($json.report) }}\",\n  \"template\": \"weekly_finance_report\",\n  \"format\": \"pdf\",\n  \"include_charts\": true\n}"
+      }
+    },
+    {
+      "id": "create_excel_report",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Create Excel Report",
+      "position": [900, 200],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/reports/generate-excel",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"report_data\": \"={{ JSON.stringify($json.report) }}\",\n  \"template\": \"weekly_finance_report\",\n  \"format\": \"excel\",\n  \"include_raw_data\": true\n}"
+      }
+    },
+    {
+      "id": "save_reports",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Save Reports to Storage",
+      "position": [1100, 100],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/storage/save",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"files\": [\n    {\n      \"name\": \"Weekly-Report-{{ $json.report_id }}.pdf\",\n      \"content\": \"={{ $json.pdf_content }}\",\n      \"type\": \"report\",\n      \"format\": \"pdf\"\n    },\n    {\n      \"name\": \"Weekly-Report-{{ $json.report_id }}.xlsx\",\n      \"content\": \"={{ $json.excel_content }}\",\n      \"type\": \"report\",\n      \"format\": \"excel\"\n    }\n  ],\n  \"metadata\": {\n    \"report_id\": \"={{ $json.report.metadata.report_id }}\",\n    \"period\": \"={{ $json.report.metadata.period }}\",\n    \"generated_at\": \"={{ $json.report.metadata.generated_at }}\"\n  }\n}"
+      }
+    },
+    {
+      "id": "send_email_report",
+      "type": "n8n-nodes-base.emailSend",
+      "name": "Send Email Report",
+      "position": [1300, 100],
+      "parameters": {
+        "fromEmail": "finance-reports@company.com",
+        "toEmail": "cfo@company.com,finance-team@company.com,executives@company.com",
+        "subject": "Weekly Finance Report - {{ $json.report_period }}",
+        "text": "Weekly Finance Report\n\nPeriod: {{ $json.report_period }}\nReport ID: {{ $json.report.metadata.report_id }}\n\nEXECUTIVE SUMMARY:\n• Total Invoices Processed: {{ $json.report.executive_summary.total_invoices_processed }}\n• Total Amount Processed: ${{ $json.report.executive_summary.total_amount_processed.toLocaleString() }}\n• Processing Efficiency: {{ ($json.report.executive_summary.processing_efficiency * 100).toFixed(1) }}%\n• Exception Rate: {{ $json.report.executive_summary.exceptions_rate.toFixed(1) }}%\n\nKEY INSIGHTS:\n{{ $json.report.insights.map(insight => `• ${insight.title}: ${insight.description}`).join('\\n') }}\n\nTOP RECOMMENDATIONS:\n{{ $json.report.recommendations.slice(0, 3).map(rec => `• ${rec}`).join('\\n') }}\n\nFull reports attached:\n• PDF version for executive review\n• Excel version with detailed data\n\nAccess interactive dashboard: http://localhost:3000/reports/weekly/{{ $json.report_id }}",
+        "attachments": "binary",
+        "options": {
+          "attachments": "={{ $json.report_files || [] }}"
+        }
+      }
+    },
+    {
+      "id": "update_dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Update Dashboard",
+      "position": [1500, 100],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/dashboard/weekly-update",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"report_id\": \"={{ $json.report.metadata.report_id }}\",\n  \"period\": \"={{ $json.report.metadata.period }}\",\n  \"summary_metrics\": \"={{ $json.report.executive_summary }}\",\n  \"key_insights\": \"={{ $json.report.insights }}\",\n  \"updated_at\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    },
+    {
+      "id": "log_completion",
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Log Report Generation",
+      "position": [1700, 100],
+      "parameters": {
+        "url": "http://localhost:8000/api/v1/observability/log",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{ $credentials.apiKey }}",
+          "Content-Type": "application/json"
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "{\n  \"event_type\": \"weekly_report_generated\",\n  \"report_id\": \"={{ $json.report.metadata.report_id }}\",\n  \"period\": \"={{ $json.report.metadata.period }}\",\n  \"formats_generated\": [\"pdf\", \"excel\"],\n  \"recipients_count\": 3,\n  \"processing_time_ms\": \"={{ new Date().getTime() - new Date($json.start_time || new Date()).getTime() }}\",\n  \"status\": \"completed\",\n  \"timestamp\": \"={{ new Date().toISOString() }}\"\n}"
+      }
+    }
+  ],
+  "connections": {
+    "schedule_trigger": {
+      "main": [
+        [
+          {
+            "node": "calculate_report_dates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calculate_report_dates": {
+      "main": [
+        [
+          {
+            "node": "fetch_invoice_metrics",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "fetch_financial_metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]

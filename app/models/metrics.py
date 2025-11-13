@@ -4,13 +4,14 @@ Metrics and SLO-related database models for AP Intake & Validation system.
 
 import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Optional
 
 from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Date as SQLDate,
     Enum,
     ForeignKey,
     Index,
@@ -315,3 +316,71 @@ class MetricsConfiguration(Base, UUIDMixin, TimestampMixin):
 
     def __repr__(self):
         return f"<MetricsConfiguration(key={self.config_key}, category={self.config_category}, active={self.is_active})>"
+
+
+class WeeklyMetric(Base, UUIDMixin, TimestampMixin):
+    """Weekly aggregated metrics for executive reporting and trend analysis."""
+
+    __tablename__ = "weekly_metrics"
+
+    # Week identification
+    week_start_date = Column(SQLDate, nullable=False, unique=True, index=True)
+    week_end_date = Column(SQLDate, nullable=False, index=True)
+
+    # Processing volume metrics
+    invoices_processed = Column(Integer, nullable=False, default=0)
+    auto_processed = Column(Integer, nullable=False, default=0)
+    manual_processed = Column(Integer, nullable=False, default=0)
+    exceptions_created = Column(Integer, nullable=False, default=0)
+    exceptions_resolved = Column(Integer, nullable=False, default=0)
+    duplicates_detected = Column(Integer, nullable=False, default=0)
+
+    # Performance timing metrics
+    avg_processing_time_hours = Column(Numeric(10, 2), nullable=False)
+    p50_time_to_ready_minutes = Column(Numeric(10, 2), nullable=True)
+    p95_time_to_ready_minutes = Column(Numeric(10, 2), nullable=True)
+    p99_time_to_ready_minutes = Column(Numeric(10, 2), nullable=True)
+    exception_resolution_time_p50_hours = Column(Numeric(10, 2), nullable=True)
+    api_response_time_p95_ms = Column(Numeric(10, 2), nullable=True)
+    system_availability_percentage = Column(Numeric(5, 2), nullable=True)
+
+    # Quality metrics
+    auto_processing_rate = Column(Numeric(5, 2), nullable=False, default=0)
+    pass_rate_structural = Column(Numeric(5, 2), nullable=False, default=0)
+    pass_rate_math = Column(Numeric(5, 2), nullable=False, default=0)
+    duplicate_recall_percentage = Column(Numeric(5, 2), nullable=True)
+
+    # Financial metrics
+    total_invoice_amount = Column(Numeric(15, 2), nullable=False, default=0)
+    cost_per_invoice = Column(Numeric(10, 2), nullable=False, default=0)
+    total_cost = Column(Numeric(15, 2), nullable=False, default=0)
+    roi_percentage = Column(Numeric(5, 2), nullable=False, default=0)
+
+    # Additional analysis data
+    working_capital_optimization = Column(JSON, nullable=True)
+    performance_summary = Column(Text, nullable=True)
+    quality_metrics = Column(JSON, nullable=True)
+
+    # Performance indexes
+    __table_args__ = (
+        Index('idx_weekly_metrics_week_start', 'week_start_date'),
+        Index('idx_weekly_metrics_created_at', 'created_at'),
+        Index('idx_weekly_metrics_auto_processing_rate', 'auto_processing_rate'),
+        Index('idx_weekly_metrics_cost_per_invoice', 'cost_per_invoice'),
+        CheckConstraint('invoices_processed >= 0', name='check_invoices_processed_non_negative'),
+        CheckConstraint('auto_processed >= 0', name='check_auto_processed_non_negative'),
+        CheckConstraint('manual_processed >= 0', name='check_manual_processed_non_negative'),
+        CheckConstraint('exceptions_created >= 0', name='check_exceptions_created_non_negative'),
+        CheckConstraint('exceptions_resolved >= 0', name='check_exceptions_resolved_non_negative'),
+        CheckConstraint('duplicates_detected >= 0', name='check_duplicates_detected_non_negative'),
+        CheckConstraint('avg_processing_time_hours >= 0', name='check_avg_processing_time_non_negative'),
+        CheckConstraint('auto_processing_rate >= 0 AND auto_processing_rate <= 100', name='check_auto_processing_rate_range'),
+        CheckConstraint('pass_rate_structural >= 0 AND pass_rate_structural <= 100', name='check_pass_rate_structural_range'),
+        CheckConstraint('pass_rate_math >= 0 AND pass_rate_math <= 100', name='check_pass_rate_math_range'),
+        CheckConstraint('cost_per_invoice >= 0', name='check_cost_per_invoice_non_negative'),
+        CheckConstraint('total_cost >= 0', name='check_total_cost_non_negative'),
+        CheckConstraint('roi_percentage >= 0', name='check_roi_percentage_non_negative'),
+    )
+
+    def __repr__(self):
+        return f"<WeeklyMetric(week={self.week_start_date}, invoices={self.invoices_processed}, auto_rate={self.auto_processing_rate}%>)>"

@@ -11,21 +11,21 @@ from decimal import Decimal
 from typing import List, Optional, Dict, Any, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 
 # Base schemas
 class BaseAnalyticsSchema(BaseModel):
     """Base schema for analytics data."""
 
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            Decimal: lambda v: float(v) if v is not None else None,
-            datetime: lambda v: v.isoformat() if v is not None else None,
-            date: lambda v: v.isoformat() if v is not None else None,
-            UUID: lambda v: str(v) if v is not None else None
-        }
+    model_config = ConfigDict(from_attributes=True)
+
+    def model_dump_json(self, **kwargs) -> str:
+        """Custom JSON serialization for analytics data."""
+        return super().model_dump_json(
+            serialize_as_any=True,
+            **kwargs
+        )
 
 
 # ================================

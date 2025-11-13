@@ -1,0 +1,65 @@
+================================================================================
+SIMPLE VALIDATION FRAMEWORK TEST REPORT
+================================================================================
+Generated: 2025-11-10 18:29:30
+
+OVERALL RESULTS:
+  Total Tests: 11
+  Passed: 11
+  Success Rate: 100.0%
+
+CATEGORY RESULTS:
+  ✓ Structural: 100.0% (5/5)
+  ✓ Mathematical: 100.0% (6/6)
+
+DETAILED RESULTS:
+------------------------------------------------------------
+  [PASS] valid_invoice_structure (structural)
+    Description: Test completely valid invoice structure
+    Confidence: 0.950
+
+  [PASS] missing_vendor_name (structural)
+    Description: Test invoice with missing vendor name
+    Confidence: 0.800
+
+  [PASS] invalid_date_format (structural)
+    Description: Test with invalid date format
+    Confidence: 0.800
+
+  [PASS] invalid_amount_format (structural)
+    Description: Test with invalid amount format
+    Confidence: 0.800
+
+  [PASS] no_line_items (structural)
+    Description: Test invoice with no line items
+    Confidence: 0.800
+
+  [PASS] perfect_calculations (mathematical)
+    Description: Test with perfect mathematical calculations
+    Confidence: 0.950
+
+  [PASS] line_calculation_error (mathematical)
+    Description: Test with incorrect line item calculation
+    Confidence: 0.800
+
+  [PASS] subtotal_mismatch (mathematical)
+    Description: Test with subtotal mismatch
+    Confidence: 0.800
+
+  [PASS] total_amount_mismatch (mathematical)
+    Description: Test with total amount mismatch
+    Confidence: 0.800
+
+  [PASS] rounding_precision_test (mathematical)
+    Description: Test with rounding precision challenges
+    Confidence: 0.900
+
+  [PASS] multiple_line_items (mathematical)
+    Description: Test with multiple line items
+    Confidence: 0.950
+
+================================================================================
+ASSESSMENT
+================================================================================
+Overall Assessment: EXCELLENT - Production Ready
+Success Rate: 100.0%
