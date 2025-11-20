@@ -14,7 +14,7 @@ data:
   DOCLING_TIMEOUT: "30"
   LANGGRAPH_STATE_TTL: "3600"
   LLM_PROVIDER: "openai"
-  LLM_MODEL: "gpt-3.5-turbo"
+  LLM_MODEL: "deepseek/deepseek-chat-v3.1:free"
   LLM_MAX_TOKENS: "1000"
   LLM_TEMPERATURE: "0.1"
   ALGORITHM: "HS256"

@@ -41,7 +41,6 @@ def upgrade():
         sa.Column('llm_cost', sa.Float(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.ForeignKeyConstraint(['id'], [], []),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('trace_id', 'span_id', name='uq_trace_span')
     )

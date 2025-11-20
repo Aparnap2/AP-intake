@@ -44,10 +44,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['invoice_id'], ['invoices.id'], ),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('idempotency_key', name='uq_idempotency_key'),
-        sa.CheckConstraint('check_execution_count_non_negative', 'execution_count >= 0'),
-        sa.CheckConstraint('check_idempotency_key_not_empty', "idempotency_key <> ''"),
-        sa.CheckConstraint('check_max_executions_positive', 'max_executions >= 1'),
-        sa.CheckConstraint('check_ttl_seconds_positive', 'ttl_seconds IS NULL OR ttl_seconds > 0')
+        sa.CheckConstraint('execution_count >= 0', name='check_execution_count_non_negative'),
+        sa.CheckConstraint("idempotency_key <> ''", name='check_idempotency_key_not_empty'),
+        sa.CheckConstraint('max_executions >= 1', name='check_max_executions_positive'),
+        sa.CheckConstraint('ttl_seconds IS NULL OR ttl_seconds > 0', name='check_ttl_seconds_positive')
     )
     op.create_index('idx_idempotency_expires_status', 'idempotency_records', ['expires_at', 'operation_status'], unique=False)
     op.create_index('idx_idempotency_invoice_status', 'idempotency_records', ['invoice_id', 'operation_status'], unique=False)

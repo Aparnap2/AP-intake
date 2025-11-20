@@ -145,7 +145,7 @@ DOCLING_CONFIDENCE_THRESHOLD=0.8
 DOCLING_MAX_PAGES=10
 
 # LLM Patching
-LLM_MODEL=gpt-4o-mini
+LLM_MODEL=
 LLM_MAX_TOKENS=2000
 LLM_TEMPERATURE=0.1
 OPENROUTER_API_KEY=your_api_key
@@ -740,4 +740,4 @@ This comprehensive documentation serves as the single source of truth for the AP
 **Last Updated**: November 2025
 **System Version**: 2.0.0
 **Production Status**: READY
-**Documentation Maintainer**: Development Team
+**Documentation Maintainer**: Development Team 

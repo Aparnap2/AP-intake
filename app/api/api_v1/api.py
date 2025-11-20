@@ -14,7 +14,7 @@ from app.api.api_v1.endpoints import (
     exceptions,
     ingestion,
     # staging,  # Temporarily commented out due to SQLAlchemy table conflicts
-    # emails,  # Temporarily commented out due to missing email tables
+    emails,  # Re-enabling email endpoints
     celery_monitoring,
     quickbooks,
     analytics,
@@ -24,6 +24,8 @@ from app.api.api_v1.endpoints import (
     # ar,  # Temporarily disabled due to Pydantic compatibility issues
     n8n_webhooks,
     performance,
+    gmail_webhook,
+    gmail_oauth_callback,
 )
 
 api_router = APIRouter()
@@ -38,7 +40,7 @@ api_router.include_router(ingestion.router, prefix="/ingestion", tags=["Ingestio
 # api_router.include_router(staging.router, prefix="/staging", tags=["Export Staging"])  # Temporarily commented out
 api_router.include_router(status.router, prefix="/status", tags=["System Status"])
 api_router.include_router(exceptions.router, prefix="/exceptions", tags=["Exception Management"])
-# api_router.include_router(emails.router, prefix="/emails", tags=["Email Ingestion"])  # Temporarily commented out
+api_router.include_router(emails.router, prefix="/emails", tags=["Email Ingestion"])
 api_router.include_router(celery_monitoring.router, prefix="/celery", tags=["Celery Monitoring"])
 api_router.include_router(quickbooks.router, prefix="/quickbooks", tags=["QuickBooks Integration"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics & KPIs"])
@@ -48,3 +50,5 @@ api_router.include_router(dlq.router, prefix="/dlq", tags=["Dead Letter Queue"])
 # api_router.include_router(observability.router, prefix="/observability", tags=["Observability & Runbooks"])  # Temporarily disabled
 # api_router.include_router(ar.router, prefix="/ar", tags=["Accounts Receivable"])  # Temporarily disabled
 api_router.include_router(n8n_webhooks.router, prefix="/webhook", tags=["n8n Webhooks"])
+api_router.include_router(gmail_webhook.router, prefix="/gmail", tags=["Gmail Pub/Sub Webhooks"])
+api_router.include_router(gmail_oauth_callback.router, prefix="/gmail", tags=["Gmail OAuth Callback"])

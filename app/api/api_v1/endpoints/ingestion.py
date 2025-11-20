@@ -3,12 +3,14 @@ Enhanced ingestion API endpoints with comprehensive file handling and deduplicat
 """
 
 import asyncio
+import hashlib
 import logging
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request, Response, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc, func
@@ -194,6 +196,335 @@ async def upload_file(
             await idempotency_service.mark_operation_failed(db, idempotency_key, {"error": str(e)})
         logger.error(f"Unexpected error uploading file {file.filename}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/batch-upload")
+async def batch_upload_files(
+    files: List[UploadFile] = File(...),
+    vendor_id: Optional[str] = Query(None, description="Optional vendor ID for all files"),
+    source_type: str = Query("batch_upload", description="Source type"),
+    source_reference: Optional[str] = Query(None, description="Source reference ID"),
+    uploaded_by: Optional[str] = Query(None, description="User who uploaded the files"),
+    idempotency_key: Optional[str] = Query(None, description="Client-provided idempotency key"),
+    db: AsyncSession = Depends(get_db),
+    request: Request = None,
+):
+    """
+    Batch upload multiple files for invoice processing.
+
+    This endpoint provides efficient batch processing of multiple files with:
+    - Concurrent file processing for better performance
+    - Comprehensive validation and error handling
+    - Duplicate detection across all files
+    - Partial success handling with detailed status reporting
+    - Idempotency to prevent duplicate batch operations
+
+    Returns:
+        - 200: All files processed successfully
+        - 207: Partial success (some files failed)
+        - 400: Validation errors or no files provided
+        - 500: Internal server error
+    """
+    logger.info(f"Starting batch upload of {len(files)} files")
+
+    start_time = time.time()
+
+    # Validate batch size
+    MAX_BATCH_SIZE = 50
+    if len(files) > MAX_BATCH_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {MAX_BATCH_SIZE} files allowed per batch"
+        )
+
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
+
+    # Validate individual files
+    MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+    ALLOWED_TYPES = {
+        "application/pdf": [".pdf"],
+        "image/png": [".png"],
+        "image/jpeg": [".jpg", ".jpeg"],
+        "image/tiff": [".tiff", ".tif"],
+    }
+
+    validated_files = []
+    total_file_size = 0
+    duplicate_count = 0
+
+    for file in files:
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="All files must have filenames")
+
+        # Check file size
+        if file.size and file.size > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File {file.filename} size exceeds {MAX_FILE_SIZE / 1024 / 1024}MB limit"
+            )
+
+        # Check file type
+        is_valid_type = False
+        if file.content_type in ALLOWED_TYPES:
+            is_valid_type = True
+        else:
+            for ext in ALLOWED_TYPES.values():
+                if any(file.filename.lower().endswith(e) for e in ext):
+                    is_valid_type = True
+                    break
+
+        if not is_valid_type:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File {file.filename} has unsupported type. Supported types: PDF, PNG, JPG, JPEG, TIFF"
+            )
+
+        validated_files.append(file)
+        total_file_size += file.size or 0
+
+    if not validated_files:
+        raise HTTPException(status_code=400, detail="No valid files provided")
+
+    # Generate batch idempotency key if not provided
+    if not idempotency_key:
+        file_hashes = []
+        for file in validated_files:
+            content = await file.read()
+            file_hash = hashlib.sha256(content).hexdigest()
+            file_hashes.append(file_hash[:8])  # Use first 8 chars for batch key
+            await file.seek(0)  # Reset file pointer
+
+        batch_hash = hashlib.sha256("".join(sorted(file_hashes)).encode()).hexdigest()[:16]
+        idempotency_key = f"batch_{batch_hash}_{int(time.time())}"
+
+    # Check for existing batch idempotency record
+    existing_record, is_new = await idempotency_service.check_and_create_idempotency_record(
+        db=db,
+        idempotency_key=idempotency_key,
+        operation_type=IdempotencyOperationType.INVOICE_UPLOAD,
+        operation_data={
+            "batch_upload": True,
+            "file_count": len(validated_files),
+            "total_size": total_file_size,
+            "vendor_id": vendor_id,
+            "source_type": source_type,
+            "source_reference": source_reference,
+            "uploaded_by": uploaded_by,
+        },
+        user_id=uploaded_by,
+        client_ip=request.client.host if request else None,
+    )
+
+    if not is_new:
+        # Return existing batch result
+        if existing_record.operation_status.value == "completed":
+            logger.info(f"Returning existing batch result for idempotency key: {idempotency_key}")
+            return existing_record.result_data
+        elif existing_record.operation_status.value == "in_progress":
+            raise HTTPException(
+                status_code=409,
+                detail="Batch upload is already in progress with the same idempotency key"
+            )
+        else:
+            # Check if we can retry failed batch operation
+            if existing_record.execution_count < existing_record.max_executions:
+                await idempotency_service.mark_operation_started(db, idempotency_key)
+            else:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Batch upload with idempotency key has failed and exceeded retry limit"
+                )
+    else:
+        # Mark new batch operation as started
+        await idempotency_service.mark_operation_started(db, idempotency_key)
+
+    # Process files concurrently
+    batch_id = str(uuid.uuid4())
+    results = []
+    successful_uploads = 0
+    failed_uploads = 0
+
+    async def process_single_file(file: UploadFile) -> Dict[str, Any]:
+        """Process a single file in the batch."""
+        try:
+            # Read file content
+            file_content = await file.read()
+            file_hash = hashlib.sha256(file_content).hexdigest()
+
+            # Generate file-specific idempotency key
+            file_idempotency_key = idempotency_service.generate_idempotency_key(
+                operation_type=IdempotencyOperationType.INVOICE_UPLOAD,
+                vendor_id=vendor_id,
+                file_hash=file_hash,
+                user_id=uploaded_by,
+                additional_context={
+                    "filename": file.filename,
+                    "source_type": source_type,
+                    "batch_id": batch_id,
+                }
+            )
+
+            # Check for existing file idempotency record
+            file_existing_record, file_is_new = await idempotency_service.check_and_create_idempotency_record(
+                db=db,
+                idempotency_key=file_idempotency_key,
+                operation_type=IdempotencyOperationType.INVOICE_UPLOAD,
+                operation_data={
+                    "filename": file.filename,
+                    "vendor_id": vendor_id,
+                    "source_type": source_type,
+                    "source_reference": source_reference,
+                    "uploaded_by": uploaded_by,
+                    "file_hash": file_hash,
+                    "batch_id": batch_id,
+                },
+                user_id=uploaded_by,
+                client_ip=request.client.host if request else None,
+            )
+
+            if not file_is_new:
+                if file_existing_record.operation_status.value == "completed":
+                    logger.info(f"Returning existing file result for {file.filename}")
+                    return {
+                        "success": True,
+                        "is_duplicate": True,
+                        "result": file_existing_record.result_data
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"File {file.filename} has existing operation with status: {file_existing_record.operation_status.value}"
+                    }
+
+            # Mark file operation as started
+            await idempotency_service.mark_operation_started(db, file_idempotency_key)
+
+            # Ingest file
+            ingestion_result = await ingestion_service.ingest_file(
+                file_content=file_content,
+                filename=file.filename,
+                content_type=file.content_type,
+                vendor_id=vendor_id,
+                source_type=source_type,
+                source_reference=source_reference,
+                uploaded_by=uploaded_by,
+                user_id=getattr(request.state, 'user_id', None),
+                request=request,
+            )
+
+            # Transform to response format
+            response_data = {
+                "id": ingestion_result["ingestion_job_id"],
+                "original_filename": file.filename,
+                "file_size_bytes": ingestion_result["file_size"],
+                "file_hash_sha256": ingestion_result["file_hash"],
+                "status": ingestion_result["status"],
+                "storage_path": ingestion_result["storage_path"],
+                "duplicate_analysis": ingestion_result.get("duplicate_analysis", {}),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "estimated_processing_time_seconds": ingestion_result.get("estimated_processing_time", 0),
+                "idempotency_key": file_idempotency_key,
+                "batch_id": batch_id,
+            }
+
+            # Mark file operation as completed
+            await idempotency_service.mark_operation_completed(db, file_idempotency_key, response_data)
+
+            return {
+                "success": True,
+                "is_duplicate": False,
+                "result": response_data
+            }
+
+        except Exception as e:
+            logger.error(f"Error processing file {file.filename}: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+        finally:
+            # Reset file pointer
+            await file.seek(0)
+
+    # Process all files concurrently with limited concurrency
+    MAX_CONCURRENT_UPLOADS = 10
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_UPLOADS)
+
+    async def process_with_semaphore(file):
+        async with semaphore:
+            return await process_single_file(file)
+
+    # Run concurrent processing
+    processing_tasks = [process_with_semaphore(file) for file in validated_files]
+    processing_results = await asyncio.gather(*processing_tasks, return_exceptions=True)
+
+    # Process results
+    file_results = []
+    for i, result in enumerate(processing_results):
+        filename = validated_files[i].filename
+
+        if isinstance(result, Exception):
+            file_results.append({
+                "success": False,
+                "error": f"Processing error: {str(result)}",
+                "original_filename": filename,
+                "status": "error"
+            })
+            failed_uploads += 1
+        elif result["success"]:
+            file_results.append(result["result"])
+            successful_uploads += 1
+            if result["is_duplicate"]:
+                duplicate_count += 1
+        else:
+            file_results.append({
+                "success": False,
+                "error": result["error"],
+                "original_filename": filename,
+                "status": "error"
+            })
+            failed_uploads += 1
+
+    # Create batch response
+    processing_time = time.time() - start_time
+    batch_response = {
+        "batch_id": batch_id,
+        "results": file_results,
+        "summary": {
+            "total_files": len(validated_files),
+            "successful_uploads": successful_uploads,
+            "failed_uploads": failed_uploads,
+            "total_file_size_bytes": total_file_size,
+            "duplicates_detected": duplicate_count,
+            "success_rate": successful_uploads / len(validated_files) if validated_files else 0,
+        },
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "processing_time_seconds": round(processing_time, 2),
+        "idempotency_key": idempotency_key,
+    }
+
+    # Mark batch operation as completed
+    await idempotency_service.mark_operation_completed(db, idempotency_key, batch_response)
+
+    logger.info(
+        f"Batch upload completed: {successful_uploads}/{len(validated_files)} files successful, "
+        f"duplicates: {duplicate_count}, processing time: {processing_time:.2f}s"
+    )
+
+    # Determine appropriate HTTP status code
+    if failed_uploads == 0:
+        status_code = 200  # All successful
+    elif successful_uploads == 0:
+        status_code = 500  # All failed
+    else:
+        status_code = 207  # Partial success (Multi-Status)
+
+    return Response(
+        content=batch_response,
+        status_code=status_code,
+        media_type="application/json"
+    )
 
 
 @router.get("/jobs", response_model=IngestionListResponse)

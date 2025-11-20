@@ -17,8 +17,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add audit_metadata column to storage_audit table
-    op.add_column('storage_audit', sa.Column('audit_metadata', sa.Text(), nullable=True))
+    # Add audit_metadata column to storage_audit table if it doesn't exist
+    connection = op.get_bind()
+    result = connection.execute(sa.text("""
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'storage_audit' AND column_name = 'audit_metadata'
+    """))
+
+    if not result.fetchone():
+        op.add_column('storage_audit', sa.Column('audit_metadata', sa.Text(), nullable=True))
 
 
 def downgrade() -> None:

@@ -28,9 +28,9 @@ from app.db.session import Base
 class VendorStatus(str, enum.Enum):
     """Vendor status options."""
 
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    PENDING = "pending"
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    PENDING = "PENDING"
 
 
 class POStatus(str, enum.Enum):
@@ -61,7 +61,7 @@ class Vendor(Base, UUIDMixin, TimestampMixin):
 
     # Status and metadata
     active = Column(Boolean, nullable=False, default=True, index=True)
-    status = Column(String(20), default="active", nullable=False)
+    status = Column(Enum(VendorStatus), default=VendorStatus.ACTIVE, nullable=False)
 
     # Vendor-specific rules
     payment_terms_days = Column(String(10), nullable=True, default="30")

@@ -115,7 +115,7 @@ class ExportFieldTransformer:
         return current
 
     def _format_date(self, value: Any, format_str: Optional[str] = None) -> str:
-        """Format date value."""
+        """Format date value with standardized YYYY-MM-DD output for Invoicify compliance."""
         if isinstance(value, str):
             try:
                 dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
@@ -123,15 +123,27 @@ class ExportFieldTransformer:
                 try:
                     dt = datetime.strptime(value, '%Y-%m-%d')
                 except ValueError:
-                    return str(value)
+                    try:
+                        # Try other common date formats
+                        for fmt in ['%m/%d/%Y', '%d/%m/%Y', '%m-%d-%Y', '%d-%m-%Y', '%Y/%m/%d']:
+                            try:
+                                dt = datetime.strptime(value, fmt)
+                                break
+                            except ValueError:
+                                continue
+                        else:
+                            return str(value)  # Return as-is if no format matches
+                    except:
+                        return str(value)
         elif isinstance(value, datetime):
             dt = value
         else:
             return str(value)
 
+        # Default to YYYY-MM-DD format for Invoicify compliance
         if format_str:
             return dt.strftime(format_str)
-        return dt.isoformat()
+        return dt.strftime('%Y-%m-%d')
 
     def _format_phone(self, value: Any, format_str: Optional[str] = None) -> str:
         """Format phone number."""

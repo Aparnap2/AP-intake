@@ -101,10 +101,18 @@ class Settings(BaseSettings):
     EMAIL_SECURITY_VALIDATION_ENABLED: bool = True
     EMAIL_AUTO_PROCESS_INVOICES: bool = True
 
+    # Gmail Integration
+    GMAIL_CLIENT_ID: Optional[str] = None
+    GMAIL_CLIENT_SECRET: Optional[str] = None
+    GCP_PROJECT_ID: Optional[str] = None
+    GMAIL_PUBSUB_TOPIC_NAME: str = "gmail-invoice-notifications"
+    GMAIL_PUBSUB_SUBSCRIPTION_NAME: str = "gmail-invoice-subscription"
+    GMAIL_WEBHOOK_URL: str = "http://localhost:8000/api/v1/gmail/gmail-webhook"
+
     # Export configuration
     EXPORT_PATH: str = "./exports"
     QUICKBOOKS_SANDBOX_CLIENT_ID: Optional[str] = None
-    QUICKBOOKS_SANDBOX_CLIENT_ID: Optional[str] = None
+    QUICKBOOKS_SANDBOX_CLIENT_SECRET: Optional[str] = None
     QUICKBOOKS_REDIRECT_URI: Optional[str] = "http://localhost:8000/api/v1/quickbooks/callback"
     QUICKBOOKS_ENVIRONMENT: str = "sandbox"  # sandbox or production
     XERO_SANDBOX_CLIENT_ID: Optional[str] = None

@@ -192,7 +192,7 @@ DOCLING_CONFIDENCE_THRESHOLD=0.8
 DOCLING_MAX_PAGES=10
 
 # LLM Integration
-LLM_MODEL=gpt-4o-mini
+LLM_MODEL=deepseek/deepseek-chat-v3.1:freeo-mini
 OPENROUTER_API_KEY=your_api_key
 MAX_LLM_COST_PER_INVOICE=0.10
 
